@@ -1,0 +1,10 @@
+# Fires zero times on the corpus by design; the vague-only noun list is what keeps it there.
+extends: existence
+message: "Announced count: '%s'. Write the findings and let the reader count."
+level: warning
+ignorecase: true
+tokens:
+  - '(?:there|here) are (?:two|three|four|five|several|a number of) (?:things|reasons|factors|points|takeaways|considerations|caveats|themes|aspects)'
+  - '(?:two|three|four|five) (?:key|main|important|critical|notable|primary|major) (?:things|reasons|factors|points|takeaways|considerations|findings|observations|challenges|issues|problems|areas)'
+  - '(?:two|three|four|five) (?:things|reasons|factors|points|takeaways|considerations|findings|aspects|themes|caveats) (?:fall out|emerge|stand out|are worth|come to mind|jump out|are at play|are in play|bear mentioning|deserve mention|are noteworthy|are worth noting|boil down|come down)'
+  - '(?:a few|several|numerous) (?:key|important|notable) (?:things|reasons|factors|points|takeaways|considerations)'

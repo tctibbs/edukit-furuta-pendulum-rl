@@ -1,0 +1,10 @@
+# Preamble that delays the sentence it introduces. Cheap to check, cheap to cut.
+extends: existence
+message: "Throat-clearing: '%s'. Cut it and state the thing."
+level: warning
+ignorecase: true
+tokens:
+  - "[Ii]t's (important|worth) (to note|noting|mentioning)"
+  - "It is (important|worth) (to note|noting|mentioning)"
+  - "Keep in mind that"
+  - "It should be noted"

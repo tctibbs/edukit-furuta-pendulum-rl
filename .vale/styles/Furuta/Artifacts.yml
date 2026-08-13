@@ -1,0 +1,13 @@
+# scope raw because Vale treats a URL as non-prose, and tracking parameters only appear in links.
+extends: existence
+message: "Paste artifact: '%s'."
+level: error
+nonword: true
+scope: raw
+tokens:
+  - 'contentReference|oaicite|oai_citation|citeturn\d|turn\d+image\d'
+  - '\[cite: \d+\]|\[span_\d+\]\(start_span\)|\{\{cite[^}]+\}\}'
+  - 'utm_source=(chatgpt|openai)[^\s)]*|referrer=grok\.com'
+  - 'sandbox:/mnt/data/|https?://chat\.openai\.com/'
+  - '\[(Your Name|Specific Topic|TBD|CITATION NEEDED|INSERT[^\]]*|PASTE[^\]]*)\]'
+  - '<(INSERT_TEXT|PLACEHOLDER)>|\{\{TEMPLATE\}\}|Lorem ipsum'

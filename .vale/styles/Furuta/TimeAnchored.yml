@@ -1,0 +1,6 @@
+# Words that rot. Suggestion, because a dated note can legitimately want them.
+extends: existence
+message: "Time-anchored word: '%s'. It rots. Say the date or the version."
+level: suggestion
+ignorecase: true
+tokens: ['currently', 'at present', 'for now', 'soon', 'eventually', 'the latest']

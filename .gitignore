@@ -1,0 +1,15 @@
+# Local tooling and machine-specific notes
+.claude
+
+# Third-party source trees, extracted locally. Not redistributable.
+vendor/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+
+# OS
+.DS_Store

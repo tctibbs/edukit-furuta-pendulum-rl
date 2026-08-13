@@ -1,0 +1,5 @@
+# Error, because repo content never names the tooling that produced it.
+extends: existence
+message: "Repo content is tool-agnostic: '%s'."
+level: error
+tokens: ['Claude', 'Copilot', 'ChatGPT', 'AI-generated', 'AI-assisted']

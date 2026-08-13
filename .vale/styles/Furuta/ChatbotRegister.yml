@@ -1,0 +1,16 @@
+# Assistant-reply phrasing that survives a paste. Error, because none of it is ever intentional.
+extends: existence
+message: "Chatbot register: '%s'."
+level: error
+ignorecase: true
+tokens:
+  - "I hope this helps"
+  - "Would you like me to"
+  - "Great question"
+  - "You're absolutely right"
+  - "Let me know if"
+  - "As of my last update"
+  - "based on available information"
+  - "As an AI( language)? model"
+  - "Feel free to ask"
+  - "Is there anything else"

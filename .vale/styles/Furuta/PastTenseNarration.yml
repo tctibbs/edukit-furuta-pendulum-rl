@@ -1,0 +1,8 @@
+# Matches determiner-noun-verb narration, not bare past-tense words, so participles pass.
+extends: existence
+message: "Past tense in narration: '%s'. Experiment reports are present tense; past is only for what is no longer true."
+level: warning
+scope: paragraph
+tokens:
+  - '\b(?:The|A|An|Its|This|That|Each|Every|Both|Neither) [a-z]+ (?:ran|learned|produced|reached|returned|showed|failed|started|stopped|booted|surfaced|dropped|climbed|settled|arrived|behaved|tracked|held|gave|took|made|came|went|sat|rose|fell|kept|meant|built)\b'
+  - '\b(?:was|were) (?:the plan|measured|recorded|observed|chosen|used|driven|scored|logged)\b'

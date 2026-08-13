@@ -1,0 +1,10 @@
+# Binds the candour word to this project's own act of stating; a bare "honest" on a noun is fine.
+extends: existence
+message: "Self-praise: '%s'. Describe the work; do not rate its candour."
+level: suggestion
+ignorecase: true
+scope: sentence
+tokens:
+  - '(measured|compared|reported|scored|assessed|evaluated|benchmarked|judged) honestly'
+  - 'the (honest|candid|frank) (reason|answer|version|account|assessment)'
+  - '(stating|saying|naming|admitting|recording|reporting|putting) (it|this|that|them) (plainly|bluntly|straight)'

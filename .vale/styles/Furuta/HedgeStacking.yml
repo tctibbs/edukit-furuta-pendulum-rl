@@ -1,0 +1,10 @@
+# Only stacked hedges. A single hedge tracking measured uncertainty carries information.
+extends: existence
+message: "Hedge stacking: '%s'."
+level: warning
+ignorecase: true
+tokens:
+  - 'could potentially'
+  - 'may (possibly|potentially|eventually)'
+  - 'might perhaps'
+  - 'can sometimes possibly'
