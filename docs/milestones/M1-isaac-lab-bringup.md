@@ -6,7 +6,9 @@ This milestone targets `Isaac-Cartpole-Direct-v0`, Isaac Lab's hello world simul
 
 ## Goals
 
-- [ ] Isaac Lab runs headless on the training host, usable over SSH.
-- [ ] The cartpole environment trains end to end.
-- [ ] Throughput is measured against parallel environment count.
-- [ ] A demo video is recorded.
+- [x] Isaac Lab runs headless on the training host, usable over SSH.
+- [x] The cartpole environment trains end to end.
+- [x] Throughput is measured against parallel environment count.
+- [x] A demo video is recorded.
+
+Met by [experiment 01](../experiments/01-cartpole-bringup/writeup.md).

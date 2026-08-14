@@ -1,0 +1,60 @@
+# Experiment 01. Isaac-Cartpole-Direct-v0 with stock Isaac Lab task and PPO settings.
+# Nothing was tuned. The goal was purely to test the toolchain.
+# Values copied out of the run's own params/ directory on the training host:
+#   logs/rsl_rl/cartpole_direct/2026-08-13_21-14-34/params/{agent,env}.yaml
+
+run_id: 2026-08-13_21-14-34
+task: Isaac-Cartpole-Direct-v0
+
+env:
+  num_envs: 4096
+  device: cuda:0
+  dt: 0.008333333333333333   # 120 Hz physics
+  episode_length_s: 5.0      # 300 step cap
+  action_scale: 100.0
+  rew_scale_alive: 1.0
+  rew_scale_terminated: -2.0
+  rew_scale_pole_pos: -1.0
+  rew_scale_cart_vel: -0.01
+  rew_scale_pole_vel: -0.005
+
+agent:
+  seed: 42
+  device: cuda:0
+  num_steps_per_env: 16
+  max_iterations: 50         # chosen to be short, not to reach convergence
+  save_interval: 50
+  logger: tensorboard
+  policy:
+    class_name: ActorCritic
+    actor_hidden_dims: [32, 32]
+    critic_hidden_dims: [32, 32]
+    activation: elu
+    init_noise_std: 1.0
+  algorithm:
+    class_name: PPO
+    num_learning_epochs: 5
+    num_mini_batches: 4
+    learning_rate: 0.001
+    schedule: adaptive
+    gamma: 0.99
+    lam: 0.95
+    entropy_coef: 0.005
+    desired_kl: 0.01
+    clip_param: 0.2
+    max_grad_norm: 1.0
+    value_loss_coef: 1.0
+
+stack:
+  isaacsim: 5.1.0
+  isaaclab: v2.3.2
+  torch: 2.7.0+cu128
+  python: 3.11.9
+
+hardware:
+  gpu: NVIDIA GeForce RTX 5080
+  vram_mib: 16303
+  driver: 591.86
+  cpu: AMD Ryzen 7 9800X3D
+  ram_gb: 32
+  os: Windows 11 build 26200
