@@ -22,6 +22,16 @@ hardware = [
 [tool.uv]
 package = false
 
+# The simulation stack verified on the training host. Not a pip extra on purpose: these come
+# from three indexes and must install in order. See docs/runbooks/training-host-setup.md.
+[tool.furuta.simulation-stack]
+python = "3.11"
+isaacsim = "5.1.0"                  # extras [all,extscache], from https://pypi.nvidia.com
+isaaclab = "v2.3.2"                 # git tag, commit 37ddf62. Editable installs from source/
+torch = "2.7.0+cu128"               # also torchvision 0.22.0+cu128, torchaudio 2.7.0+cu128
+tensordict = "0.8.3"                # must match the torch build, see runbook
+setuptools = "<81"                  # 81 removed pkg_resources, which flatdict's build needs
+
 [tool.ruff]
 line-length = 88
 target-version = "py311"

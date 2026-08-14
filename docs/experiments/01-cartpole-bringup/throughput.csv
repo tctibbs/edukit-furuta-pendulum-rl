@@ -1,0 +1,4 @@
+num_envs,median_steps_per_s,relative_to_64,per_env_steps_per_s,median_iteration_time_s,samples
+64,3640,1.0,56.9,0.27,10
+512,28924,7.9,56.5,0.27,10
+4096,238190,65.4,58.2,0.27,10
