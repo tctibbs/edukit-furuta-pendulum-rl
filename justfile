@@ -20,3 +20,13 @@ check:
 format:
     uv run ruff format .
     uv run ruff check --fix .
+
+# Rebuild the reference pack. Not committed, third-party copyright
+[group('docs')]
+docs-fetch:
+    ./scripts/fetch_reference_docs.sh
+
+# Delete the reference pack. Recover with `just docs-fetch`
+[group('docs')]
+docs-clean:
+    rm -f docs/reference/*.{pdf,bin,zip,m}
