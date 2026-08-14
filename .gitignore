@@ -1,3 +1,8 @@
+# Third-party reference documents, copyright ST and UCLA. Not redistributable.
+# Repopulate with scripts/fetch_reference_docs.sh
+docs/reference/*
+!docs/reference/.gitkeep
+
 # Local tooling and machine-specific notes
 .claude
 
