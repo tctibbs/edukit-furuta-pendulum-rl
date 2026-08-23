@@ -1,0 +1,45 @@
+# Experiment 02. The Furuta environment built from the manual's nominal values.
+# Physical constants come from config/edukit.yaml at the repository root. The
+# articulation and the environment are both generated from it.
+
+task: Furuta-Balance-Direct-v0
+date: 2026-08-14
+
+physical:
+  pendulum_length_m: 0.258       # L, Manual App. D, nominal
+  rotor_arm_length_m: 0.140      # r, Manual Table 2, nominal
+  pendulum_mass_kg: 0.050        # assumed, cancels in the frequency
+  normalized_shaft_inertia: 0.0139
+  derived_inertia_about_com: 3.0048099e-4   # kg m^2
+  derived_omega_g_squared: 55.847           # (rad/s)^2, manual gives 55.85
+
+environment:
+  physics_rate_hz: 1000
+  control_rate_hz: 500
+  decimation: 2
+  episode_length_s: 10.0
+  action_space: 1                # normalized rotor acceleration
+  observation_space: 5           # cos, sin of upright angle, pendulum rate, rotor angle, rotor rate
+  clone_in_fabric: false         # fails on a world-anchored articulation
+
+actuator:
+  model: acceleration command, integrated to a microstep-quantized position
+  max_acceleration_rad_s2: 100.0
+  max_step_rate_hz: 10000.0
+  microsteps_per_rev: 3200
+  rotor_drive_stiffness: 1.0e5
+  rotor_drive_damping: 50.0      # 2*sqrt(K*I) is about 21 for this rotor
+
+measurement:
+  steps_per_configuration: 200   # 50 for the single-environment run
+  warmup_steps: 20
+  action: constant 0.25, to exercise the integrator rather than sit at zero
+
+stack:
+  isaacsim: 5.1.0
+  isaaclab: v2.3.2
+  torch: 2.7.0+cu128
+hardware:
+  gpu: NVIDIA GeForce RTX 5080
+  vram_mib: 16303
+  driver: 591.86

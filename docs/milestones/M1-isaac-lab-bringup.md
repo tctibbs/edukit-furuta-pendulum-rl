@@ -11,4 +11,4 @@ This milestone targets `Isaac-Cartpole-Direct-v0`, Isaac Lab's hello world simul
 - [x] Throughput is measured against parallel environment count.
 - [x] A demo video is recorded.
 
-Met by [experiment 01](../experiments/01-cartpole-bringup/writeup.md).
+Met by [Experiment 01](../experiments/01-cartpole-bringup/writeup.md).

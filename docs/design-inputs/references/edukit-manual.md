@@ -23,7 +23,7 @@ The site also carries a second install guide for a different host platform, and 
 
 | Section | Page | What |
 |---|---|---|
-| Sec. 3, Table 2 | | System characteristics, gains, resolutions |
+| Sec. 4, Table 2 | 11 | System characteristics, gains, resolutions |
 | App. D, Pendulum Dynamics | 143 | The validated dynamic model |
 | App. E, Rotor Actuator Plant with Acceleration Control | 150 | The `apply_acceleration()` actuator model |
 | App. F, Rotor Actuator Plant Transfer Function | 164 | Closed-form rotor plant |

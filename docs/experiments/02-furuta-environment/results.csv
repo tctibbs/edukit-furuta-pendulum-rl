@@ -1,0 +1,4 @@
+num_envs,throughput_steps_per_s,step_time_ms,tracking_error_rad,tracking_error_microsteps
+1,102,9.85,1.568e-04,0.08
+512,50106,10.22,3.972e-04,0.20
+4096,409876,9.99,3.972e-04,0.20
