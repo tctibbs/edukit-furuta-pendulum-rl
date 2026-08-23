@@ -1,0 +1,4 @@
+configuration,drive_stiffness,drive_damping,tracking_error_rad,tracking_error_microsteps
+no drive api,,,2.342e-01,119.26
+drive added,1.0e5,1.0e3,3.047e-02,15.52
+damping corrected,1.0e5,50.0,1.568e-04,0.08

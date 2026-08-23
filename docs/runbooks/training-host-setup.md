@@ -148,12 +148,12 @@ if not exist "%python_exe%" (
 
 The general lesson from 4 and 5: re-pinning torch after the fact is not enough. Anything already resolved against the wrong torch that carries compiled code has to be re-resolved too.
 
-**6. Recorded video flashes black every other frame.** `--video` captures once per environment step, but the simulator renders every `decimation` steps, so half the captures grab a buffer that was never drawn. They come out as uniform dark frames, and the result flickers hard. `env.sim.render_interval=1` renders every step and fixes most of it. Frame 0 is still captured before the renderer has anything to give. Checking for it is quick:
+**6. Recorded video flashes black every other frame.** `--video` captures once per environment step, but the simulator renders every `decimation` steps, so half the captures grab a buffer that was never drawn. They come out as uniform dark frames, and the result flickers hard. `env.sim.render_interval=1` does not fix it. A 2500-step capture on 2026-08-23 still came back with 1250 black frames, the even-numbered ones. Checking for it is quick:
 
 ```bash
 ffmpeg -v error -i clip.mp4 -vf "signalstats,metadata=print:key=lavfi.signalstats.YAVG:file=-" -f null -
 ```
 
-A clean clip holds YAVG within a couple of units. Blank frames read as a flat value far below the rest, and dropping them is `select='gt(n,0)'` plus a re-encode.
+A clean clip holds YAVG within a couple of units. Blank frames read as a flat value far below the rest, and dropping the even frames is `select='mod(n,2)'` plus a re-encode.
 
 **7. `scp` and `sftp` cannot copy anything off the host.** The shell profile prints text on every session and both transfer protocols read that banner as protocol data, giving `Received message too long`. Details and a workaround are in [Copying files off the host](#copying-files-off-the-host) above.

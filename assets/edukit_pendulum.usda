@@ -1,0 +1,113 @@
+#usda 1.0
+(
+    defaultPrim = "Furuta"
+    kilogramsPerUnit = 1
+    metersPerUnit = 1
+    upAxis = "Z"
+)
+
+def Xform "Furuta" (
+    prepend apiSchemas = ["PhysicsArticulationRootAPI"]
+)
+{
+    def Xform "base" (
+        prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI"]
+    )
+    {
+        point3f physics:centerOfMass = (0, 0, 0)
+        float3 physics:diagonalInertia = (0.001, 0.001, 0.001)
+        float physics:mass = 1
+        quatf physics:principalAxes = (1, 0, 0, 0)
+
+        def Cylinder "visual"
+        {
+            uniform token axis = "Z"
+            float3[] extent = [(-0.03, -0.03, -0.175), (0.03, 0.03, 0.175)]
+            double height = 0.35
+            double radius = 0.03
+            double3 xformOp:translate = (0, 0, 0.175)
+            uniform token[] xformOpOrder = ["xformOp:translate"]
+        }
+    }
+
+    def PhysicsFixedJoint "base_to_world"
+    {
+        rel physics:body1 = </Furuta/base>
+    }
+
+    def Xform "arm" (
+        prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI"]
+    )
+    {
+        point3f physics:centerOfMass = (0.07, 0, 0)
+        float3 physics:diagonalInertia = (0.00001, 0.000032666667, 0.000032666667)
+        float physics:mass = 0.02
+        quatf physics:principalAxes = (1, 0, 0, 0)
+
+        def Cylinder "visual"
+        {
+            uniform token axis = "X"
+            float3[] extent = [(-0.07, -0.008, -0.008), (0.07, 0.008, 0.008)]
+            double height = 0.14
+            double radius = 0.008
+            double3 xformOp:translate = (0.07, 0, 0)
+            uniform token[] xformOpOrder = ["xformOp:translate"]
+        }
+    }
+
+    def Xform "pendulum" (
+        prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI"]
+    )
+    {
+        point3f physics:centerOfMass = (0, 0, -0.129)
+        float3 physics:diagonalInertia = (0.00030048098, 0.00030048098, 4e-7)
+        float physics:mass = 0.05
+        quatf physics:principalAxes = (1, 0, 0, 0)
+
+        def Cylinder "visual"
+        {
+            uniform token axis = "Z"
+            float3[] extent = [(-0.004, -0.004, -0.129), (0.004, 0.004, 0.129)]
+            double height = 0.258
+            double radius = 0.004
+            double3 xformOp:translate = (0, 0, -0.129)
+            uniform token[] xformOpOrder = ["xformOp:translate"]
+        }
+    }
+
+    def PhysicsRevoluteJoint "rotor_joint" (
+        prepend apiSchemas = ["PhysicsDriveAPI:angular"]
+    )
+    {
+        float drive:angular:physics:damping = 0
+        float drive:angular:physics:maxForce = 10000
+        float drive:angular:physics:stiffness = 0
+        float drive:angular:physics:targetPosition = 0
+        uniform token drive:angular:physics:type = "force"
+        uniform token physics:axis = "Z"
+        rel physics:body0 = </Furuta/base>
+        rel physics:body1 = </Furuta/arm>
+        point3f physics:localPos0 = (0, 0, 0.35)
+        point3f physics:localPos1 = (0, 0, 0)
+        quatf physics:localRot0 = (1, 0, 0, 0)
+        quatf physics:localRot1 = (1, 0, 0, 0)
+    }
+
+    def PhysicsRevoluteJoint "pendulum_joint" (
+        prepend apiSchemas = ["PhysicsDriveAPI:angular"]
+    )
+    {
+        float drive:angular:physics:damping = 0
+        float drive:angular:physics:maxForce = 100
+        float drive:angular:physics:stiffness = 0
+        float drive:angular:physics:targetPosition = 0
+        uniform token drive:angular:physics:type = "force"
+        uniform token physics:axis = "X"
+        rel physics:body0 = </Furuta/arm>
+        rel physics:body1 = </Furuta/pendulum>
+        point3f physics:localPos0 = (0.14, 0, 0)
+        point3f physics:localPos1 = (0, 0, 0)
+        quatf physics:localRot0 = (1, 0, 0, 0)
+        quatf physics:localRot1 = (1, 0, 0, 0)
+    }
+}
