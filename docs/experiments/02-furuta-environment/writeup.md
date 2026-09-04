@@ -28,7 +28,7 @@ The pendulum swings in a plane that turns with the arm.
 
 *The geometry as modeled, generated from the parameter file by [model_spec.py](./figures/model_spec.py). `r` and `L` reach the dynamics. The arm height is modeled but does not affect the dynamics. It only has to keep the pendulum off the floor. The rod radius is cosmetic. The inertia is calculated.*
 
-The physical constants are defined in [`config/edukit.yaml`](../../../config/edukit.yaml). The last two rows are the resolutions the policy reads the rotor and pendulum angles in.
+The physical constants this experiment ran on are pinned in [config.yaml](./config.yaml). The last two rows are the resolutions the policy reads the rotor and pendulum angles in.
 
 | Symbol | Quantity | Value | Where it comes from |
 |---|---|---|---|
@@ -245,5 +245,5 @@ These rest on one machine and one run per environment count, with no seed set. [
 - [Experiment 01](../01-cartpole-bringup/writeup.md), the toolchain bring-up and the cartpole throughput this is compared against.
 - [Training host runbook](../../runbooks/training-host-setup.md), the install and the seven defects it carries.
 - [Milestone 02](../../milestones/M2-furuta-model.md), the acceptance criteria this work serves.
-- [The parameter file](../../../config/edukit.yaml), where every constant this report uses carries its source and date.
+- [The parameter file](../../../config/edukit.yaml), the project's constants, each with its source and date.
 - Edukit Manual, `docs/reference/Edukit_Manual.pdf`, fetched with `scripts/fetch_reference_docs.sh`. App. D, Pendulum Dynamics page 148 for `L`, `g` and the normalized shaft inertia. Table 2 page 11 for `r`, the rotor gain and encoder resolution. App. E page 160 for `apply_acceleration()`. The manual is copyright STMicroelectronics and Prof. William J. Kaiser, UCLA, so it is cited rather than reproduced.

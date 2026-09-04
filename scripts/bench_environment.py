@@ -1,11 +1,10 @@
 """Step the pendulum environment headless and report throughput and tracking error.
 
-One `env.step` advances every environment together. Throughput is the environment count
-divided by the time one step takes. Tracking error is the distance between the rotor
-joint and the actuator's position target, in microsteps.
+One `env.step` advances every environment together, so throughput is the environment
+count divided by the time one step takes. Tracking error is the distance between the
+rotor joint and the actuator's position target, in microsteps.
 
-The simulation app closes when the script ends. The process ends with it. Run one
-environment count per invocation, on the training host:
+Run one environment count per invocation, on the training host:
 
     python scripts/bench_environment.py --headless --num-envs 512
 """

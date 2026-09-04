@@ -1,23 +1,25 @@
 # Physical and interface parameters for the STEVAL-EDUKIT01 rotary inverted pendulum.
 #
-# The simulation reads its physical constants from this file. Every value here is the
-# manual's nominal for the kit as designed. Nothing has been measured on this unit.
+# The simulation reads its physical constants from this file. A value measured on this unit
+# carries the date it was taken and the manual's nominal it replaced. The rest are the
+# manual's nominal for the kit as designed. Experiment 03 measured the geometry and the
+# free swing.
 
 geometry:
-  pendulum_length_m: 0.258      # L, from the manual, App. D, Pendulum Dynamics, page 148
-  rotor_arm_length_m: 0.140     # r, full arm, from the manual, Table 2, page 11. App. D page 148 prints 0.141 for the same symbol
-  pendulum_mass_kg: 0.050       # m, assumed. The manual does not give it; it cancels in the linear model but not in the torque budget
+  pendulum_length_m: 0.265      # L, measured 2026-08-24. The manual's nominal is 0.258
+  rotor_arm_length_m: 0.1145    # r, the radius the pivot sweeps, measured 2026-08-24. The manual's 0.140 is the full arm
+  pendulum_mass_kg: 0.02065     # m, weighed before assembly. An upper bound. The 17.05 g tube figure may include the pivot shaft
   gravity_m_s2: 9.806           # From the manual, App. D, Pendulum Dynamics, page 148. Not the standard 9.80665
 
 dynamics:
-  normalized_shaft_inertia: 0.0139   # 2*I_shaft/(m*L^2), from the manual, App. D, page 148
-  quality_factor: 20.0               # Q of the suspended oscillation, from the manual, App. D
+  normalized_shaft_inertia: 0.0181   # 2*I_shaft/(m*L^2), fitted 2026-08-24 to the measured suspended mode. The manual's nominal is 0.0139
+  quality_factor: 28.7               # Q of the suspended oscillation, measured 2026-08-24. The manual's nominal is 20.0
 
 actuator:
   full_steps_per_rev: 200            # From the manual, Sec. 4, Table 2, page 11
   microsteps_per_full_step: 16       # From the manual, Sec. 4, page 11
   max_step_rate_hz: 10000.0          # From the manual, Sec. 6, page 13, worded there as over 10,000 microsteps per second. Nominal, unmeasured on this unit
-  max_acceleration_rad_s2: 100.0     # Assumed. Bounded by motor torque, unmeasured on this unit
+  max_acceleration_rad_s2: 11.78     # MAX_ACCEL in the supplied firmware, read as microsteps per second squared
 
 control:
   loop_rate_hz: 500.0                # From the manual, App. E, Sec. 19

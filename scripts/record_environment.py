@@ -1,13 +1,12 @@
 """Record video of the pendulum environment under a cosine rotor command.
 
-The command is an acceleration. A sine integrates to a velocity `(A/w)(1 - cos wt)`
-that never goes negative, and the rotor creeps one way into its travel bound. A cosine
+The command is an acceleration. A sine integrates to a velocity `(A/w)(1 - cos wt)` that
+never goes negative, and the rotor creeps one way into its travel bound. A cosine
 integrates to `(A/w) sin wt`, and the rotor sweeps back and forth.
 
-The period defaults to 420 control steps, the pendulum's own 0.841 s period. Each
-cycle pumps the swing higher and the reaction torque carries the arm further. Over
-2500 steps, amplitude 0.8 reached the pi bound at 3.8 s and reset four times.
-Amplitude 0.7 peaked at 2.83 rad. A longer clip needs a lower amplitude.
+The period defaults to 420 control steps, the pendulum's own 0.841 s period. Each cycle
+pumps the swing higher and the reaction torque carries the arm further, so a longer clip
+needs a lower amplitude: at 0.8 the arm reached the pi bound at 3.8 s.
 
 Run on the training host:
 

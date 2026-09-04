@@ -6,7 +6,7 @@
   rate for each. Angles are quantized the way the hardware reads them. The hardware has
   no velocity sensor. Each rate is the change in angle since the last control step.
 - Reward: the pendulum's height, +1 upright and -1 hanging. Nothing trains against it
-  yet; it is here because `DirectRLEnv` requires one.
+  yet. `DirectRLEnv` requires a reward.
 - Episode end: the rotor passing its travel bound, or a timeout.
 """
 
@@ -40,13 +40,14 @@ PENDULUM_JOINT = "pendulum_joint"
 
 ROTOR_DRIVE_STIFFNESS = 1.0e5
 ROTOR_DRIVE_DAMPING = 50.0
-"""Rotor position-drive gains. A stepper holds position until it drops steps.
+"""Rotor position-drive gains. The real rotor is a stepper and holds its commanded
+position unless it loses steps.
 
-The implicit actuator applies `K(target - q) - D*q_dot`. The damping term makes a
-moving rotor lag its target. At D = 1e3 and 3.5 rad/s the lag is 0.03 rad, about 15
-microsteps. Critical damping is 2*sqrt(K*I), about 21 for the rotor's inertia of
-1.1e-3 kg m^2 with the pendulum hanging. D = 50 is about twice critical. At D = 50
-the rotor tracks within one microstep."""
+The implicit actuator applies `K(target - q) - D*q_dot`. The damping term makes a moving
+rotor lag its target. At D = 1e3 and 3.5 rad/s the lag is 0.03 rad, about 15 microsteps.
+Critical damping is 2*sqrt(K*I), about 12 for the 3.6e-4 kg m^2 the arm and the hanging
+pendulum carry about the rotor axis. D = 50 is about four times critical, and the rotor
+tracks within one microstep."""
 
 
 @configclass
@@ -73,7 +74,8 @@ class FurutaEnvCfg(DirectRLEnvCfg):
                 stiffness=ROTOR_DRIVE_STIFFNESS,
                 damping=ROTOR_DRIVE_DAMPING,
             ),
-            # The pendulum pivot is passive. Damping comes from the manual's Q.
+            # The pendulum pivot is passive. Damping comes from the Q measured on this
+            # unit, in config/edukit.yaml.
             "pendulum": ImplicitActuatorCfg(
                 joint_names_expr=[PENDULUM_JOINT],
                 stiffness=0.0,
@@ -98,8 +100,7 @@ class FurutaEnvCfg(DirectRLEnvCfg):
     initial_pendulum_angle_range = [-0.1, 0.1]
     """Reset spread about hanging, in radians. The asset hangs at zero.
 
-    Without it, every environment resets to the same state and follows the same
-    trajectory."""
+    The spread gives each environment a different starting angle and trajectory."""
 
 
 class FurutaEnv(DirectRLEnv):
@@ -216,13 +217,13 @@ class FurutaEnv(DirectRLEnv):
         joint_vel[:, self._rotor_idx] = 0.0
         self.robot.write_joint_state_to_sim(joint_pos, joint_vel, None, env_ids)
 
-        # Reset the actuator with the joint. If the two disagree, the stiff drive snaps
-        # the rotor to the actuator's position on the next substep.
+        # Reset the actuator and the joint to the same angle. The stiff drive puts the
+        # rotor on the actuator's position at the next substep.
         self._actuator.reset(env_ids)
         self._rotor_target[env_ids] = self._actuator.quantized_position()[env_ids]
 
-        # Seed the rate estimate from the quantized starting angles. An unquantized
-        # seed adds up to 0.65 rad/s of false rate to each episode's first step.
+        # Seed the rate estimate from the quantized starting angles. Half an encoder
+        # count is 0.65 rad/s of rate over one control step.
         encoder = PARAMS.rad_per_encoder_count
         pendulum = joint_pos[:, self._pendulum_idx[0]]
         self._prev_pendulum[env_ids] = torch.round(pendulum / encoder) * encoder

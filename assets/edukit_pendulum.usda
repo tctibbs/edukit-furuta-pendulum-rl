@@ -39,18 +39,18 @@ def Xform "Furuta" (
         prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI"]
     )
     {
-        point3f physics:centerOfMass = (0.07, 0, 0)
-        float3 physics:diagonalInertia = (0.00001, 0.000032666667, 0.000032666667)
+        point3f physics:centerOfMass = (0.05725, 0, 0)
+        float3 physics:diagonalInertia = (0.00001, 0.000021850417, 0.000021850417)
         float physics:mass = 0.02
         quatf physics:principalAxes = (1, 0, 0, 0)
 
         def Cylinder "visual"
         {
             uniform token axis = "X"
-            float3[] extent = [(-0.07, -0.008, -0.008), (0.07, 0.008, 0.008)]
-            double height = 0.14
+            float3[] extent = [(-0.05725, -0.008, -0.008), (0.05725, 0.008, 0.008)]
+            double height = 0.1145
             double radius = 0.008
-            double3 xformOp:translate = (0.07, 0, 0)
+            double3 xformOp:translate = (0.05725, 0, 0)
             uniform token[] xformOpOrder = ["xformOp:translate"]
         }
     }
@@ -59,18 +59,18 @@ def Xform "Furuta" (
         prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI"]
     )
     {
-        point3f physics:centerOfMass = (0, 0, -0.129)
-        float3 physics:diagonalInertia = (0.00030048098, 0.00030048098, 4e-7)
-        float physics:mass = 0.05
+        point3f physics:centerOfMass = (0, 0, -0.1325)
+        float3 physics:diagonalInertia = (0.00013396934, 0.00013396934, 1.652e-7)
+        float physics:mass = 0.02065
         quatf physics:principalAxes = (1, 0, 0, 0)
 
         def Cylinder "visual"
         {
             uniform token axis = "Z"
-            float3[] extent = [(-0.004, -0.004, -0.129), (0.004, 0.004, 0.129)]
-            double height = 0.258
+            float3[] extent = [(-0.004, -0.004, -0.1325), (0.004, 0.004, 0.1325)]
+            double height = 0.265
             double radius = 0.004
-            double3 xformOp:translate = (0, 0, -0.129)
+            double3 xformOp:translate = (0, 0, -0.1325)
             uniform token[] xformOpOrder = ["xformOp:translate"]
         }
     }
@@ -105,7 +105,7 @@ def Xform "Furuta" (
         uniform token physics:axis = "X"
         rel physics:body0 = </Furuta/arm>
         rel physics:body1 = </Furuta/pendulum>
-        point3f physics:localPos0 = (0.14, 0, 0)
+        point3f physics:localPos0 = (0.1145, 0, 0)
         point3f physics:localPos1 = (0, 0, 0)
         quatf physics:localRot0 = (1, 0, 0, 0)
         quatf physics:localRot1 = (1, 0, 0, 0)
