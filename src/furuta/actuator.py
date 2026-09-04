@@ -35,7 +35,7 @@ class AccelerationCommandActuator:
 
     @property
     def max_acceleration(self) -> float:
-        """Acceleration limit in rad/s^2, bounded by motor torque."""
+        """Acceleration limit in rad/s^2, the firmware's MAX_ACCEL."""
         return self._p.max_acceleration_rad_s2
 
     @property
@@ -45,7 +45,7 @@ class AccelerationCommandActuator:
 
     @property
     def quantum(self) -> float:
-        """One microstep in radians, the rotor position quantum."""
+        """One microstep in radians."""
         return self._p.rad_per_microstep
 
     def reset(self, env_ids: torch.Tensor | None = None) -> None:
@@ -65,8 +65,8 @@ class AccelerationCommandActuator:
         """
         accel = torch.clamp(action, -1.0, 1.0) * self.max_acceleration
 
-        # Semi-implicit: velocity first, then position from the new velocity. Matches a
-        # firmware loop that updates the step rate and then emits steps at it.
+        # Semi-implicit Euler, matching the firmware loop that updates the step rate and
+        # then emits steps at it.
         self.velocity = torch.clamp(
             self.velocity + accel * dt, -self.max_rate, self.max_rate
         )

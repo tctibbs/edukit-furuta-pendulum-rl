@@ -31,7 +31,7 @@ parser.add_argument("--output", type=str, default="videos")
 AppLauncher.add_app_launcher_args(parser)
 args = parser.parse_args()
 
-# Offscreen rendering needs the camera extensions. Same as `--enable_cameras`.
+# Offscreen rendering needs the camera extensions.
 args.enable_cameras = True
 app_launcher = AppLauncher(args)
 simulation_app = app_launcher.app

@@ -6,7 +6,7 @@ Per [Milestone 01](../../milestones/M1-isaac-lab-bringup.md), the goal is to get
 
 ## Setup
 
-The training host was set up following [Training host setup](../../runbooks/training-host-setup.md). Commands that run there assume the working directory is the IsaacLab folder it creates. Not all of the commands run there, though: the learning-curve figure gets regenerated locally, from the experiment folder, and so is the SSH tunnel for watching a run live.
+The training host was set up following [Training host setup](../../runbooks/training-host-setup.md). Commands that run there assume the working directory is the IsaacLab folder it creates. Not all of the commands run there, though. The learning-curve figure is regenerated locally, from the experiment folder, and the SSH tunnel for watching a run live is opened there too.
 
 ## The work
 
@@ -24,7 +24,7 @@ Running it confirmed Isaac Sim creates a D3D12 device and runs physics on `cuda:
 
 ### Training the stock cartpole end to end
 
-The built-in Cartpole task was used for the end-to-end test because it is the closest match in Isaac Lab to the Furuta pendulum project and comes with a working configuration.
+The end-to-end test runs Isaac Lab's built-in Cartpole task, the closest match to the Furuta pendulum project and one that comes with a working configuration.
 
 Training ran for 50 iterations at 4096 environments. The full configuration can be found in [config.yaml](./config.yaml).
 
@@ -45,7 +45,7 @@ Training was watched from the local workstation via TensorBoard, following [Trai
 | Seeds | 1 (preliminary) |
 | Total environment steps | 3.28 M |
 
-Reward and episode length are both still rising at iteration 49, cut off by the `--max_iterations 50` limit before either leveled off, showing the policy learned: episode length increases noticeably with training as the cartpole balances the pole for longer.
+Reward and episode length are both still rising at iteration 49, cut off by the `--max_iterations 50` limit before either leveled off, showing the policy learned. Episode length rises with training as the cartpole balances the pole for longer.
 
 ![Learning curve](./figures/learning_curve.png)
 
@@ -59,9 +59,9 @@ Reward and episode length are both still rising at iteration 49, cut off by the 
 
 ### Measuring throughput against environment count
 
-Running many simulations at once is the primary reason to use a GPU-based simulator, so how much that helps was measured below.
+Running many simulations at once is the primary reason to use a GPU-based simulator, so the sweep below measures how much it helps.
 
-The sweep ran 50 iterations at 64, 512 and 4096 parallel environments; nothing else changed between runs. Isaac Lab prints a steps-per-second figure every iteration, so the median of the last ten was used.
+The sweep runs 50 iterations at 64, 512 and 4096 parallel environments, with nothing else changed between runs. Isaac Lab prints a steps-per-second figure every iteration, and the median of the last ten is the number reported.
 
 | Environments | Throughput (steps/s) | Relative to 64 envs | Per environment (steps/s) | Iteration time |
 |---|---|---|---|---|
@@ -69,7 +69,7 @@ The sweep ran 50 iterations at 64, 512 and 4096 parallel environments; nothing e
 | 512 | 28,924 | 7.9x | 56.5 | 0.27 s |
 | 4096 | 238,190 | 65.4x | 58.2 | 0.27 s |
 
-Multiplying the environment count by 64 multiplied the sample rate by 65: per-environment throughput holds at about 57 steps/s and iteration time never moves off 0.27 seconds, so the per-iteration cost is fixed and does not scale with batch width.
+Multiplying the environment count by 64 multiplied the sample rate by 65. Per-environment throughput holds at about 57 steps/s and iteration time never moves off 0.27 seconds, so the per-iteration cost does not scale with batch width.
 
 ## Takeaway
 

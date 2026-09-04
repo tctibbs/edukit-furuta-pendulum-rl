@@ -8,8 +8,8 @@ Layout, Z up, origin on the rotor axis:
     pendulum         hangs along -Z for L metres, swinging in the Y-Z plane
 
 Inertia is written explicitly. Isaac Lab's `MassPropertiesCfg` carries only mass and
-density. Without explicit inertia, PhysX treats the pendulum as a uniform rod and puts
-the suspended mode at 57.01 instead of 55.85 (rad/s)^2.
+density. Without explicit inertia, PhysX treats the pendulum as a uniform rod, which
+drops the shaft term. That term is worth 1.5 (rad/s)^2 of suspended mode on this unit.
 """
 
 from __future__ import annotations
@@ -68,7 +68,7 @@ def _mass_properties(
     api.CreateMassAttr().Set(mass)
     api.CreateCenterOfMassAttr().Set(Gf.Vec3f(*com))
     api.CreateDiagonalInertiaAttr().Set(Gf.Vec3f(*inertia))
-    # Identity, so the diagonal above is read in the body's own frame.
+    # An identity rotation keeps the diagonal above in the body's own frame.
     api.CreatePrincipalAxesAttr().Set(Gf.Quatf(1.0, 0.0, 0.0, 0.0))
 
 
@@ -141,7 +141,7 @@ def build_articulation(params: FurutaParameters, output_path: str | Path) -> Pat
         output_path.unlink()
 
     stage = Usd.Stage.CreateNew(str(output_path))
-    # SI units and Z up on the stage, so the parameter file's numbers go in as written.
+    # SI units and Z up on the stage. The parameter file's numbers go in as written.
     UsdGeom.SetStageUpAxis(stage, UsdGeom.Tokens.z)
     UsdGeom.SetStageMetersPerUnit(stage, 1.0)
     UsdPhysics.SetStageKilogramsPerUnit(stage, 1.0)
@@ -155,7 +155,8 @@ def build_articulation(params: FurutaParameters, output_path: str | Path) -> Pat
     length = params.pendulum_length_m
     mass = params.pendulum_mass_kg
 
-    # Base. A fixed body's mass and inertia never enter the solve, so both are made up.
+    # Base. A fixed body's mass and inertia never enter the solve. The values below are
+    # placeholders.
     base = _rigid_body(stage, "/Furuta/base")
     _mass_properties(base, 1.0, (0.0, 0.0, 0.0), (1e-3, 1e-3, 1e-3))
     _cylinder(
@@ -166,7 +167,7 @@ def build_articulation(params: FurutaParameters, output_path: str | Path) -> Pat
         "Z",
         (0.0, 0.0, ARM_HEIGHT_M / 2.0),
     )
-    # Only body1 is set. An empty body0 means the world, which pins the base.
+    # Only body1 is set. An empty body0 means the world. That pins the base.
     fixed = UsdPhysics.FixedJoint.Define(stage, "/Furuta/base_to_world")
     fixed.CreateBody1Rel().SetTargets(["/Furuta/base"])
 

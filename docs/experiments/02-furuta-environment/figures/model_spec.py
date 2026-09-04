@@ -6,7 +6,7 @@
 
 Lengths and mass come from this experiment's `config.yaml`. Arm height and rod radius
 are constants in `src/furuta/articulation.py`. That module imports `pxr` from Isaac Sim
-and will not import here. Its two constants are read with `ast` instead.
+and will not import here. Its constants are read with `ast`.
 """
 
 import ast
@@ -38,8 +38,8 @@ def _load_parameters(root: Path):
     """Read the constants this experiment ran on.
 
     `config/edukit.yaml` changes as measurements land. This experiment's `config.yaml`
-    overrides it with the values this run used. `src` goes on `sys.path` first because
-    the project is not installed as a package.
+    overrides it with the values this run used. The project is not installed as a
+    package. `src` goes on `sys.path` first.
     """
     sys.path.insert(0, str(root / "src"))
     from furuta.parameters import FurutaParameters
@@ -235,7 +235,7 @@ ax.text(
 
 
 def dim_line(x0, y0, x1, y1, label, offset, ha="center", va="center"):
-    """Draw a dimension line with a label."""
+    """Draw a dimension line between two points, with `label` at its midpoint."""
     ax.annotate(
         "",
         xy=(x0, y0),

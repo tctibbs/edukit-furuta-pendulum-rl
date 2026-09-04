@@ -146,7 +146,7 @@ if not exist "%python_exe%" (
 
 **5. `tensordict` crashes the process on import.** It is a compiled extension tightly coupled to the torch ABI, and `rsl-rl-lib` depends on it. If it was resolved while the wrong torch was installed, re-pinning torch afterwards leaves it linked against symbols that no longer exist. The failure is `Windows fatal exception: access violation` inside `tensordict/utils.py`, not an `ImportError`. Install `tensordict==0.8.3` to match torch 2.7.
 
-The general lesson from 4 and 5: re-pinning torch after the fact is not enough. Anything already resolved against the wrong torch that carries compiled code has to be re-resolved too.
+Defects 4 and 5 share a cause. Re-pinning torch after the fact is not enough, and anything already resolved against the wrong torch that carries compiled code has to be re-resolved too.
 
 **6. Recorded video flashes black every other frame.** `--video` captures once per environment step, but the simulator renders every `decimation` steps, so half the captures grab a buffer that was never drawn. They come out as uniform dark frames, and the result flickers hard. `env.sim.render_interval=1` does not fix it. A 2500-step capture on 2026-08-23 still came back with 1250 black frames, the even-numbered ones. Checking for it is quick:
 

@@ -36,8 +36,8 @@ ax2.text(1, 305, "episode cap, 300 steps", fontsize=8, color="grey")
 ax2.set_xlabel("iteration")
 ax2.set_ylabel("mean episode length (steps)")
 ax2.set_title("Mean episode length")
-# Fixed rather than autoscaled: episode length peaks at 275.5, and the cap line and its
-# label need room above that.
+# A fixed limit. Episode length peaks at 275.5, and the cap line and its label need
+# room above that.
 ax2.set_ylim(0, 340)
 ax2.grid(alpha=0.3)
 
