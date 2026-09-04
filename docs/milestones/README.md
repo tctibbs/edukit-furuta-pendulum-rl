@@ -7,8 +7,8 @@ Take one instrumented physical system from documented design inputs to a GPU-tra
 | Milestone 00 | Design inputs and reference pack | Done |
 | [Milestone 01](M1-isaac-lab-bringup.md) | Isaac Lab bring-up | Done |
 | [Milestone 02](M2-furuta-model.md) | The Furuta model in Isaac Lab | Done |
-| [Milestone 03](M3-hardware-bringup.md) | Hardware bring-up and system identification | Next |
-| [Milestone 04](M4-model-reconciliation.md) | Reconcile the simulation to the measured system |  |
+| [Milestone 03](M3-hardware-bringup.md) | Hardware bring-up and system identification | Done |
+| [Milestone 04](M4-model-reconciliation.md) | Reconcile the simulation to the measured system | Next |
 | [Milestone 05](M5-balance.md) | Balance |  |
 | [Milestone 06](M6-swing-up.md) | Swing-up |  |
 | [Milestone 07](M7-wrap-up.md) | Wrap-up |  |

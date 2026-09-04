@@ -1,12 +1,12 @@
 """Generate the Furuta articulation from the parameter file and check what was written.
 
-`pxr` ships inside Isaac Sim. The script launches Kit only to make that import resolve.
-It steps no simulation. Run on the training host:
+`pxr` ships inside Isaac Sim, so the script launches Kit only to make that import
+resolve. It steps no simulation. The check reads the saved file back and compares its
+mass properties with `furuta.parameters`.
+
+Run on the training host:
 
     python scripts/generate_articulation.py --output assets/edukit_pendulum.usda
-
-The check reads the saved file back and compares its mass properties with
-`furuta.parameters`.
 """
 
 from __future__ import annotations
@@ -32,10 +32,7 @@ TOLERANCE = 1e-6
 
 
 def verify(usd_path: Path, params) -> bool:
-    """Compare the saved file's mass properties with the parameter derivation.
-
-    It opens the saved file from disk, as a loader would.
-    """
+    """Compare the saved file's mass properties with the parameter derivation."""
     from pxr import Usd, UsdPhysics
 
     stage = Usd.Stage.Open(str(usd_path))
@@ -54,8 +51,7 @@ def verify(usd_path: Path, params) -> bool:
     expected_com_z = -params.pendulum_length_m / 2.0
 
     # Only these four values have a derivation to check against. The axial inertia and
-    # the arm's rest on estimates in `furuta.articulation`, with nothing to check them
-    # against.
+    # the arm's inertia rest on estimates in `furuta.articulation`.
     checks = [
         ("mass", mass, params.pendulum_mass_kg),
         ("centre of mass z", com[2], expected_com_z),
@@ -67,14 +63,14 @@ def verify(usd_path: Path, params) -> bool:
     print(f"\n{'property':<20} {'written':>16} {'expected':>16}")
     print("-" * 54)
     for name, got, want in checks:
-        # The floor keeps a zero expected value from demanding exact equality.
+        # The 1e-12 floor bounds the relative tolerance when the expected value is zero.
         good = abs(got - want) <= TOLERANCE * max(abs(want), 1e-12)
         ok &= good
         print(f"{name:<20} {got:>16.9g} {want:>16.9g} {'' if good else '  MISMATCH'}")
 
-    # Both figures below come from `params`, not from the file.
+    # The figures below come from `params`, not the saved file.
     print()
-    # 3g/(2L), the suspended mode of a uniform rod, where the mass cancels out.
+    # 3g/(2L), the suspended mode of a uniform rod. The mass cancels out.
     uniform = params.gravity_m_s2 * 1.5 / params.pendulum_length_m
     print(f"  implied omega_g^2  {params.omega_g_squared:.3f}, manual gives 55.85")
     print(f"  a uniform rod would give {uniform:.3f}")

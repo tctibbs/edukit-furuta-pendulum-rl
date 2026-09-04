@@ -6,3 +6,4 @@ Experiments are performed as a series, one per folder, in order. Each folder is 
 |---|------------|
 | 01 | [Isaac Lab bring-up and a throughput sweep](01-cartpole-bringup/writeup.md) |
 | 02 | [The Furuta environment](02-furuta-environment/writeup.md) |
+| 03 | [Hardware bring-up and system identification](03-hardware-bringup/writeup.md) |

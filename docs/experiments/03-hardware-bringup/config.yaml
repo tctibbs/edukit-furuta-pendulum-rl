@@ -1,0 +1,50 @@
+# Conditions for the Milestone 03 runs. A hardware measurement cannot be reseeded, so
+# this records the unit's state and the dates instead of a seed.
+
+board: NUCLEO-F401RE, STM32F401xD_xE, 512 KB flash, 96 KB SRAM
+link: /dev/cu.usbmodem1103 at 230400 8N1
+
+bring_up:
+  date: 2026-08-23
+  firmware: supplied ST and UCLA image, docs/reference/Edukit_firmware.bin
+  latency_runs: 2
+  samples_per_run: 7
+
+swing_up:
+  date: 2026-08-23
+  firmware: supplied image, rebuilt with per-impulse reporting
+  supplied_amplitudes: [200, 130, 120]      # below 90, 90 to 150, above 150 degrees
+  retuned_amplitudes: [200, 200, 160]
+
+# The first dynamic measurement, one free swing and one half-turn tilt sweep. The free
+# swing fixes the suspended-mode frequency. This sweep read the tilt as 0.98 degrees
+# against the full-circle sweep's 0.51 below, and the two are not reconciled.
+free_swing:
+  date: 2026-08-24
+  firmware: project `bench` build, mode w free swing and mode y tilt sweep
+  unit: assembled, motor supply connected, rotor energized and holding
+  trace: freeswing.tsv
+  releases: 5
+  release_amplitudes_deg: [56.1, 50.5, 39.9, 38.7, 37.4]
+  half_turn_tilt_deg: 0.98
+
+# The identification battery, four probes, one firmware mode each, all logging on the
+# 500 Hz tick. The captures sit in this folder beside the figures, and the figures pool
+# across repeats.
+identification_battery:
+  dates: [2026-09-03, 2026-09-04]
+  firmware: project identification build, modes y (sweep) d (pump) u (trace)
+  unit: assembled, motor supply connected, rotor energized and holding
+  captures_per_probe: 3        # IDENT_CAPTURE_RUNS; the trace runs once
+  dissipation:                 # mode d: quality factor across swing size
+    trace: pump.tsv
+    kick_amplitudes_microsteps: [400, 700, 1000]     # sub-vertical targets, no over-the-top
+    peak_reached_deg: 165
+  tilt_sweep:                  # mode y: where upright sits as the arm turns
+    trace: sweep.tsv
+    range: full circle, 0 to 360 degrees
+    full_circle_tilt_deg: 0.51
+  reference_trace:             # mode u: the golden swing-up-and-balance recording
+    trace: trace.tsv
+    balance_logging_decimation: 100                  # sparse, so serial TX does not starve
+    balance_hold_s: 4.8

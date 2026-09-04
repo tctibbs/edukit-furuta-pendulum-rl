@@ -1,15 +1,13 @@
 """Load the generated articulation on its own and report the joint layout PhysX parsed.
 
-This does not import `furuta.env`. If the layout is correct here, a fault lies in the
-environment.
-
-    python scripts/inspect_articulation.py --headless
-
-Expect 2 degrees of freedom, joints `rotor_joint` and `pendulum_joint`, and bodies
-`base`, `arm` and `pendulum`.
+This does not import `furuta.env`, so a correct layout here places a fault in the
+environment. Expect 2 degrees of freedom, joints `rotor_joint` and `pendulum_joint`, and
+bodies `base`, `arm` and `pendulum`.
 
 It checks topology and joint positions only. No script reads back the mass properties
 PhysX loaded.
+
+    python scripts/inspect_articulation.py --headless
 """
 
 from __future__ import annotations

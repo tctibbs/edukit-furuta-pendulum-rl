@@ -1,8 +1,7 @@
 """Tests for the pendulum parameter derivation.
 
-The derived inertia is checked against the manual's published constants. If these fail,
-the simulation rests on a model that disagrees with the document it implements, which is
-the failure mode most likely to look like success.
+The derived inertia is checked against the manual's published constants. A failure means
+the simulation's model disagrees with the manual it implements.
 """
 
 import math
@@ -18,36 +17,53 @@ def params() -> FurutaParameters:
     return FurutaParameters.from_yaml()
 
 
+@pytest.fixture
+def manual_nominal(params: FurutaParameters) -> FurutaParameters:
+    """The manual's nominal constants in place of this unit's measured values."""
+    return FurutaParameters(
+        **{
+            **params.__dict__,
+            "pendulum_length_m": 0.258,
+            "rotor_arm_length_m": 0.140,
+            "pendulum_mass_kg": 0.050,
+            "normalized_shaft_inertia": 0.0139,
+            "quality_factor": 20.0,
+        }
+    )
+
+
 @pytest.mark.unit
-def test_derivation_reproduces_the_manual(params: FurutaParameters) -> None:
+def test_derivation_reproduces_the_manual(manual_nominal: FurutaParameters) -> None:
     """Manual App. D gives 55.85 (rad/s)^2 including the shaft inertia."""
-    assert params.omega_g_squared == pytest.approx(55.85, abs=0.01)
+    assert manual_nominal.omega_g_squared == pytest.approx(55.85, abs=0.01)
 
 
 @pytest.mark.unit
 def test_derivation_reproduces_the_manual_without_shaft(
-    params: FurutaParameters,
+    manual_nominal: FurutaParameters,
 ) -> None:
     """Manual App. D gives 57.01 (rad/s)^2 for the rod alone.
 
     Reproducing both published numbers shows the shaft term is understood and not
     fitted to hit the headline figure.
     """
-    bare = FurutaParameters(**{**params.__dict__, "normalized_shaft_inertia": 0.0})
+    bare = FurutaParameters(
+        **{**manual_nominal.__dict__, "normalized_shaft_inertia": 0.0}
+    )
     assert bare.omega_g_squared == pytest.approx(57.01, abs=0.01)
 
 
 @pytest.mark.unit
 def test_derivation_reproduces_the_manual_frequency(
-    params: FurutaParameters,
+    manual_nominal: FurutaParameters,
 ) -> None:
     """The manual measured 1.19 Hz on its reference unit."""
-    assert params.suspended_frequency_hz == pytest.approx(1.19, abs=0.005)
+    assert manual_nominal.suspended_frequency_hz == pytest.approx(1.19, abs=0.005)
 
 
 @pytest.mark.unit
 def test_frequency_is_independent_of_mass(params: FurutaParameters) -> None:
-    """Mass cancels, so an unmeasured pendulum mass does not block the derivation."""
+    """Mass cancels from omega_g_squared."""
     heavier = FurutaParameters(**{**params.__dict__, "pendulum_mass_kg": 0.5})
     assert heavier.omega_g_squared == pytest.approx(params.omega_g_squared, rel=1e-12)
 
@@ -85,7 +101,7 @@ def test_decimation_is_an_integer(params: FurutaParameters) -> None:
 
 @pytest.mark.unit
 def test_non_integer_decimation_is_rejected(params: FurutaParameters) -> None:
-    """A rate pair that does not divide evenly is a silent phase error, so it raises."""
+    """A rate pair that does not divide evenly raises ValueError."""
     bad = FurutaParameters(**{**params.__dict__, "physics_rate_hz": 750.0})
     with pytest.raises(ValueError, match="integer multiple"):
         _ = bad.decimation

@@ -65,7 +65,9 @@ class FurutaParameters:
         """Total inertia of the pendulum assembly about its pivot.
 
         The rod is (1/3) m L^2 about its end, plus the shaft term. The shaft term
-        lowers the suspended mode from 57.01 to 55.85 (rad/s)^2.
+        lowers the suspended mode from 57.01 to 55.85 (rad/s)^2 on the manual's nominal
+        constants. On this unit's measured length and fitted shaft inertia the pair is
+        55.51 and 54.04.
         """
         rod = self.pendulum_mass_kg * self.pendulum_length_m**2 / 3.0
         return rod + self.shaft_inertia_kg_m2
