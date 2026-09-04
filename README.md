@@ -6,6 +6,7 @@ Sim-to-real reinforcement learning for a rotary inverted pendulum (Furuta pendul
 
 - [Milestones](docs/milestones/README.md)
 - [Experiments](docs/experiments/README.md)
+- [Runbooks](docs/runbooks/README.md)
 - [Design inputs](docs/design-inputs/README.md)
 - [Bill of materials](docs/design-inputs/bom.md)
 - [Decision records](docs/adrs/README.md)

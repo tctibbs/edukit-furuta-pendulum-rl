@@ -1,6 +1,6 @@
 """Tests for the acceleration-command actuator.
 
-No simulator needed, these run on CPU tensors.
+These run on CPU tensors and need no simulator.
 """
 
 import math
@@ -40,10 +40,11 @@ def test_constant_acceleration_integrates_quadratically(
 ) -> None:
     """A double integrator under constant acceleration gives 0.5*a*t^2.
 
-    The window stays below the rate ceiling on purpose. At the assumed acceleration
-    limit the rotor saturates its step rate in 0.196 s, and after that position grows
-    linearly. Semi-implicit integration carries a known offset of half a step per step,
-    which is what the tolerance admits.
+    The window stays below the rate ceiling. At the acceleration limit of 11.78 rad/s^2
+    (config/edukit.yaml, MAX_ACCEL in the supplied firmware) the rotor reaches the 19.6
+    rad/s step-rate ceiling at 1.67 s, and after that position grows linearly. Semi-
+    implicit integration carries an offset of half a step per step. The 2 percent
+    tolerance admits that offset.
     """
     dt, steps = 0.002, 50
     for _ in range(steps):
@@ -60,7 +61,7 @@ def test_velocity_saturates_at_the_step_rate_ceiling(
 ) -> None:
     """Hardware cannot step faster than its ceiling, however long the command is held.
 
-    Tolerances are float32 sized because that is the precision the simulation runs at.
+    The simulation runs in float32. The tolerance is sized to that precision.
     """
     for _ in range(10_000):
         actuator.step(torch.ones(4), dt=0.002)
@@ -87,9 +88,8 @@ def test_position_is_quantized_to_microsteps(
         pos = actuator.step(torch.rand(4) * 2 - 1, dt=0.002)
         remainder = torch.remainder(pos, actuator.quantum)
         off_lattice = torch.minimum(remainder, actuator.quantum - remainder)
-        # Float32 cannot land exactly on the lattice, and the error grows with position,
-        # so
-        # allow a hundred-thousandth of a microstep. Still far below anything physical.
+        # Float32 cannot land exactly on the lattice. The error grows with position.
+        # The tolerance is a hundred-thousandth of a microstep.
         assert off_lattice.max().item() < actuator.quantum * 1e-5
 
 
@@ -99,7 +99,7 @@ def test_quantization_hides_sub_microstep_motion(
 ) -> None:
     """Motion smaller than one microstep must not appear in the output at all.
 
-    This is what makes a policy needing fine rotor positioning fail on hardware.
+    A policy that needs sub-microstep rotor positioning fails on hardware.
     """
     tiny = actuator.quantum / 10.0
     actuator.position += tiny

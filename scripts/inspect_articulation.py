@@ -46,7 +46,7 @@ def main() -> int:
     )
 
     print("[step] spawning articulation", flush=True)
-    # Zero gains on every joint. Only gravity acts on the asset.
+    # Only gravity acts on the asset.
     cfg = ArticulationCfg(
         prim_path="/World/Furuta",
         spawn=sim_utils.UsdFileCfg(usd_path=args.usd),

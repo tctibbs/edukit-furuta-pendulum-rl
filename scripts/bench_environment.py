@@ -4,7 +4,7 @@ One `env.step` advances every environment together. Throughput is the environmen
 divided by the time one step takes. Tracking error is the distance between the rotor
 joint and the actuator's position target, in microsteps.
 
-The simulation app closes when the script ends, and the process ends with it. Run one
+The simulation app closes when the script ends. The process ends with it. Run one
 environment count per invocation, on the training host:
 
     python scripts/bench_environment.py --headless --num-envs 512
@@ -46,8 +46,7 @@ def main() -> int:
     env.reset()
 
     unwrapped = env.unwrapped
-    # A constant, non-zero acceleration. A zero action would leave the target at zero
-    # and test nothing. 0.25 of full scale is 25 rad/s^2.
+    # A constant, non-zero acceleration. 0.25 of full scale is 2.95 rad/s^2.
     action = torch.full((args.num_envs, 1), 0.25, device=unwrapped.device)
 
     # Warm up to keep kernel compilation out of the measurement.
