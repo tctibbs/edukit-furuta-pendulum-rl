@@ -91,7 +91,7 @@ uv run --with pytest --with pyyaml --with torch --with numpy pytest tests/test_p
 
 The manual's `Q` of 20 becomes viscous damping at the pivot. `parameters.py` computes `I_pivot * omega_g / Q`, and the environment applies it to the pendulum joint with zero stiffness, so the joint is undriven rather than frictionless.
 
-Each body carries a mass, a centre of mass and an inertia tensor, written explicitly:
+Each body carries a mass, a center of mass and an inertia tensor, written explicitly:
 
 ```python
 api = UsdPhysics.MassAPI.Apply(prim)
@@ -100,7 +100,7 @@ api.CreateCenterOfMassAttr().Set(Gf.Vec3f(0.0, 0.0, -length / 2.0))
 api.CreateDiagonalInertiaAttr().Set(Gf.Vec3f(inertia_com, inertia_com, axial))
 ```
 
-The centre of mass sits at `-L/2`, halfway down the rod. Physics engines take inertia about the centre of mass rather than the pivot, so `parameters.py` converts:
+The center of mass sits at `-L/2`, halfway down the rod. Physics engines take inertia about the center of mass rather than the pivot, so `parameters.py` converts:
 
 ```math
 I_\mathrm{com} = I_\mathrm{pivot} - m \left(\frac{L}{2}\right)^2
@@ -108,7 +108,7 @@ I_\mathrm{com} = I_\mathrm{pivot} - m \left(\frac{L}{2}\right)^2
 
 Rotation about `X` is the swing, so `Ixx` carries the derived value and `Iyy` matches it by symmetry. `Izz` is the rod's own long axis, where a 4 mm rod contributes almost nothing.
 
-Isaac Lab's `MassPropertiesCfg` can express mass and density and nothing else, so a shape spawned through it gets its inertia inferred by PhysX from the drawn geometry. For a cylinder that inference gives a uniform rod, `(1/12) m L^2` about the centre of mass, with the shaft term dropped and nothing to report it. `omega_g^2` then lands on 57.01, which the manual publishes for the rod without its shaft. That is a 2 percent error in the plant.
+Isaac Lab's `MassPropertiesCfg` can express mass and density and nothing else, so a shape spawned through it gets its inertia inferred by PhysX from the drawn geometry. For a cylinder that inference gives a uniform rod, `(1/12) m L^2` about the center of mass, with the shaft term dropped and nothing to report it. `omega_g^2` then lands on 57.01, which the manual publishes for the rod without its shaft. That is a 2 percent error in the plant.
 
 Nothing here is meant to touch anything, so the visual cylinders carry no collision geometry.
 
@@ -118,7 +118,7 @@ Generating the asset checks the written mass properties against the derivation a
 ..\.venv\Scripts\python.exe scripts\generate_articulation.py --output assets\edukit_pendulum.usda
 ```
 
-The check reads mass, centre of mass and the two transverse inertias back from the saved file and compares them with the derivation. They match, and `omega_g^2` is printed beside them from the parameters rather than recomputed from the file. It reads the file on disk, though, not the articulation PhysX builds from it, so the values are known to have been written and not known to have survived loading.
+The check reads mass, center of mass and the two transverse inertias back from the saved file and compares them with the derivation. They match, and `omega_g^2` is printed beside them from the parameters rather than recomputed from the file. It reads the file on disk, though, not the articulation PhysX builds from it, so the values are known to have been written and not known to have survived loading.
 
 ### The rotor drive
 
@@ -225,7 +225,7 @@ Regenerating the asset from a copy of `config/edukit.yaml` with `pendulum_length
 |---|---|---|
 | Inertia ratio | 1.35208, from `(0.300/0.258)^2` | 1.35208 |
 | omega_g^2 | 48.028, from `55.847 x 0.258/0.300` | 48.029 |
-| Centre of mass | -0.150 m, from `-L/2` | -0.150 m |
+| Center of mass | -0.150 m, from `-L/2` | -0.150 m |
 
 The articulation is therefore generated from the parameter file rather than hardcoded.
 
