@@ -15,6 +15,17 @@ install:
 check:
     uv run pre-commit run --all-files
 
+# Download the Vale style packages the prose check reads
+[group('dev')]
+vale-sync:
+    vale sync
+
+# Check prose against the house style
+[group('dev')]
+prose: vale-sync
+    vale docs/ README.md
+
+
 # Format and autofix with Ruff
 [group('dev')]
 format:

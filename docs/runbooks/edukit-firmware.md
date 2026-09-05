@@ -92,7 +92,7 @@ The directory ships prebuilt objects. Delete `*.o`, `*.d` and `*.su` first, but 
 
 Then `make all`, with the toolchain first on `PATH`. Its `secondary-outputs` target runs `arm-none-eabi-objcopy -O binary`, so the build leaves `STM32F401RE-Nucleo.bin` beside the ELF, which is the file `st-flash` writes.
 
-A different compiler built `Edukit_firmware.bin`. The rebuild will not match it byte for byte. Expect around 140 KB against the stock 130 KB. Check behaviour instead, the same banner and the same modes.
+A different compiler built `Edukit_firmware.bin`. The rebuild will not match it byte for byte. Expect around 140 KB against the stock 130 KB. Check behavior instead, the same banner and the same modes.
 
 **`make` does not rebuild after a header-only change, and it fails silently.** The generated makefile marks every target `.SECONDARY`, and the `.d` dependency files carry absolute paths from the machine that generated them, so `make` never tracks the headers. After editing only a header (for example `IDENT_AUTOSTART_MODE` in `edukit_system.h`), `make all` finds the `.elf` newer than the prerequisites it does track and does nothing. It skips the recompile, the relink and the `objcopy`, then re-wraps the stale `.bin`. It prints `Finished building` and looks successful. Deleting the objects does not help while the `.elf` is present, because `make` treats the missing objects as intermediates it decides it does not need. This is the same class of trap as the prebuilt-`.o` one above.
 
@@ -140,4 +140,4 @@ Builds from this project print their identity before the mode prompt. Run `just 
 BUILD ident (retuned swing-up; modes w y d a u; identification battery)
 ```
 
-The build id is a target key in `config/firmware.yaml`, set by `FIRMWARE_BUILD` in `edukit_system.h`, with `FIRMWARE_BUILD_NOTE` supplying the parenthetical. Change both whenever behaviour changes, and record it here. The earlier `bench` build carried only modes `w` and `y`; `ident` adds `d`, `a`, `u` and the pre-wait timestamp. The supplied ST and UCLA image prints no such line. `hw-flash` identifies it by flash read-back.
+The build id is a target key in `config/firmware.yaml`, set by `FIRMWARE_BUILD` in `edukit_system.h`, with `FIRMWARE_BUILD_NOTE` supplying the parenthetical. Change both whenever behavior changes, and record it here. The earlier `bench` build carried only modes `w` and `y`; `ident` adds `d`, `a`, `u` and the pre-wait timestamp. The supplied ST and UCLA image prints no such line. `hw-flash` identifies it by flash read-back.
