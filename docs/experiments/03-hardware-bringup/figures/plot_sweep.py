@@ -103,7 +103,7 @@ def main() -> int:
     ax.set_ylabel('shift in "straight down" (degrees)')
     _style.titled(
         ax,
-        "Where the pendulum hangs, around a full turn of the arm",
+        "Baseplate Tilt Map",
         "The shift traces a sine wave. Its amplitude is the baseplate tilt.",
     )
     ax.set_xticks(range(0, 361, 60))
