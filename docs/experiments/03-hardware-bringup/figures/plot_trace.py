@@ -106,7 +106,7 @@ def main() -> int:
     ax.set_yticks([0, 45, 90, 135, 180])
     _style.titled(
         ax,
-        "Swing up from hanging, then hold at the top",
+        "Stock Swing-Up and Hold Trace",
         "The reference episode the simulation has to reproduce.",
     )
     ax.legend(loc="lower right", fontsize=9)

@@ -147,7 +147,7 @@ def draw_model_vs_reality(result, trace, path: Path) -> None:
     axes.set_ylabel("pendulum angle from hanging (deg)")
     _style.titled(
         axes,
-        "Measured decay against the model's envelope",
+        "Free-Swing Decay vs Model",
         "One release. A viscous-only pivot never comes to rest.",
     )
     axes.legend(fontsize=9.5, loc="upper right", framealpha=0.95)
@@ -224,7 +224,7 @@ def draw_friction(results, path: Path) -> None:
     axes.set_ylabel("swing lost over the next half cycle (deg)")
     _style.titled(
         axes,
-        "Swing lost per half cycle, against swing size",
+        "Swing Lost vs Swing Size",
         "The slope is drag. The lift off zero is a fixed dry-friction bite.",
     )
     axes.legend(fontsize=9.5, loc="lower right")
@@ -288,7 +288,7 @@ def draw_period_comparison(result, path: Path) -> None:
     axes.set_xlabel("predicted period, percent off the measured one")
     _style.titled(
         axes,
-        "Predicted period for each candidate rod length",
+        "Period Error by Rod Length",
         f"Against the bench's {measured:.3f} s. Both clear the gate, the measured one "
         "by more.",
     )
@@ -348,7 +348,7 @@ def draw_amplitude_dependence(results, path: Path) -> None:
     axes.set_ylabel("swing speed (Hz)")
     _style.titled(
         axes,
-        "Swing speed against swing amplitude",
+        "Swing Speed vs Amplitude",
         "A big swing is slower, so the quoted frequency comes from a narrow band.",
     )
     axes.legend(fontsize=8)

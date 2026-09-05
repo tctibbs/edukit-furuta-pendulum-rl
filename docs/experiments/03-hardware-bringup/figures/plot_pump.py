@@ -134,7 +134,7 @@ def main() -> int:
     ax.set_ylabel("Q, how slowly energy is lost")
     _style.titled(
         ax,
-        "Effective Q at each swing size",
+        "Effective Q vs Swing Size",
         "Past 60 degrees the unit falls below the model, where swing-up works.",
     )
     ax.set_ylim(0, max(38.0, max(model_y) * 1.45))
