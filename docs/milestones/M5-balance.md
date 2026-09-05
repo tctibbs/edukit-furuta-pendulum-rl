@@ -1,4 +1,4 @@
-# Milestone 05: Balance
+# Milestone 05: balance
 
 Train a policy that holds the pendulum upright.
 

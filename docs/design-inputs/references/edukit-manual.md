@@ -17,7 +17,7 @@ Contact: kaiser@ee.ucla.edu
 | `Edukit_firmware.bin` | Prebuilt firmware image, STM32 raw binary | 127 KB | [Drive](https://drive.google.com/file/d/1zVwDdAiL3QSQ81GxXas_2DFtwxWzJHig/view) |
 | `STM32CubeIDE_project.zip` | Full firmware source project | 24 MB | [Drive](https://drive.google.com/file/d/1I-F9KUY2dun79LGVkVu25ZPb_Rtbx5q7/view) |
 
-The site also carries a second install guide for a different host platform, and Manual Rev. 2.0 from 2021-01-12, superseded by the current 173-page revision.
+The site also carries a second install guide for a different host platform, and Manual Rev. 2.0, dated 2021-01-12, superseded by the current 173-page revision.
 
 ## Highlights
 
@@ -34,7 +34,7 @@ The site also carries a second install guide for a different host platform, and 
 
 ## Course tutorials, 14 chapters
 
-Linked from the site above. Chapters 1 to 8 are classical frequency-response and root-locus design, 9 to 14 are full state feedback and LQR, chapter 12 is automated tilt calibration. Chapters 13 and 14 (LQR for suspended and inverted mode) are the direct baselines to compare against.
+Linked from the site at the top of this page. Chapters 1 to 8 cover classical frequency-response and root-locus design, 9 to 14 cover full state feedback and LQR, and 12 automates tilt calibration. Chapters 13 and 14 apply LQR to suspended and inverted mode. They're the direct baselines to compare against.
 
 ## Firmware source
 

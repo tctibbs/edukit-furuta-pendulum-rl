@@ -1,6 +1,6 @@
 # Experiments
 
-Experiments are performed as a series, one per folder, in order. Each folder is a self-contained article. To add one, copy an existing folder and follow its shape.
+The experiments form a series, one per folder, in order. Each folder is a self-contained article. Add one by copying an existing folder and following its shape.
 
 | # | Experiment |
 |---|------------|

@@ -2,15 +2,15 @@
 
 How to build the Isaac Lab environment this project trains in, on a Windows 11 host with an RT-core GPU, driven headless from another machine over SSH.
 
-Verified end to end on 2026-08-13 against Isaac Sim 5.1.0 and Isaac Lab v2.3.2. The host decision is documented in [ADR-0002](../adrs/0002-training-host.md).
+Verified end to end on 2026-08-13 against Isaac Sim 5.1.0 and Isaac Lab v2.3.2. The Architecture Decision Record (ADR) [ADR-0002](../adrs/0002-training-host.md) covers the choice of host.
 
-This guide is meant to be run alongside NVIDIA's [pip installation guide](https://isaac-sim.github.io/IsaacLab/main/source/setup/installation/pip_installation.html). Several issues were encountered during it, all of which are documented here.
+Run this guide alongside NVIDIA's [pip installation guide](https://isaac-sim.github.io/IsaacLab/main/source/setup/installation/pip_installation.html). Several defects surfaced along the way, and this page covers each one.
 
 Commands that reach the host from the workstation write it as `GPU_HOST`. Substitute the host's entry in your SSH configuration.
 
 ## Requirements
 
-Check the GPU first. Isaac Sim will not run without RT cores, whatever the driver or VRAM says, because the Kit renderer requires hardware ray tracing even when training headless.
+Check the GPU first. Whatever the driver or the memory size says, Isaac Sim doesn't run without RT cores. The Kit renderer requires hardware ray tracing even when training headless.
 
 ```powershell
 nvidia-smi --query-gpu=name,driver_version,memory.total --format=csv
@@ -81,7 +81,7 @@ Confirm the GPU build took:
 .\.venv\Scripts\python.exe -c "import torch; print(torch.__version__, torch.cuda.is_available())"
 ```
 
-That line must print a `+cu128` version and `True`. A plain version number with `True` means the GPU build was overwritten and training will run on CPU with no warning.
+That line must print a `+cu128` version and `True`. A plain version number with `True` means the GPU build was overwritten and training runs on CPU with no warning.
 
 ## Verify
 
@@ -95,7 +95,7 @@ cd IsaacLab
 
 Mean reward should climb from roughly -5 to over 250, and `logs\rsl_rl\cartpole_direct\<timestamp>\` should hold `model_49.pt` and a TensorBoard event file.
 
-The `OMNI_KIT_ACCEPT_EULA=YES` in the command above accepts the agreement; without it, a non-interactive session cannot answer the prompt, so the run stalls and then reports success anyway.
+The `OMNI_KIT_ACCEPT_EULA=YES` in the preceding command accepts the agreement. Without it, a non-interactive session can't answer the prompt, so the run stalls and then reports success anyway.
 
 ## Watch a run from the workstation
 
@@ -113,11 +113,11 @@ ssh -N -L 6006:127.0.0.1:6006 GPU_HOST
 
 Open <http://localhost:6006>.
 
-Rollout videos are written to `logs\rsl_rl\<task>\<timestamp>\videos\train\` when the training script is given `--video --video_length 100 --video_interval 10`. Recording works headless: the offscreen renderer produces frames in a non-interactive session.
+Pass `--video --video_length 100 --video_interval 10` to the training script and it writes rollout videos to `logs\rsl_rl\<task>\<timestamp>\videos\train\`. Recording works headless: the offscreen renderer produces frames in a non-interactive session.
 
 ## Copying files off the host
 
-`scp` and `sftp` both fail against this host with `Received message too long` (defect 7 below). The durable fix is to guard the host's PowerShell profile so it stays silent when the session is not interactive. Until then, this copies a file over plain SSH instead:
+`scp` and `sftp` both fail against this host with `Received message too long`. Defect 7 has the cause. The durable fix is to guard the host's PowerShell profile so it stays silent when the session isn't interactive. Until then, this copies a file over plain SSH instead:
 
 ```bash
 ssh GPU_HOST '[Convert]::ToBase64String([IO.File]::ReadAllBytes("<remote path>"))' | grep -v "^WARNING" | tr -d '\r\n ' | base64 -d > <local file>
@@ -129,7 +129,7 @@ This is fine for a video or a checkpoint, not for a large directory.
 
 **1. `flatdict` fails to build.** Its `setup.py` imports `pkg_resources`, which setuptools 81 removed. The error is `ModuleNotFoundError: No module named 'pkg_resources'` from inside pip's isolated build environment, which builds with the newest setuptools regardless of what the venv holds. Pin `setuptools<81` and install `flatdict` with `--no-build-isolation` so it uses the venv's setuptools.
 
-**2. `isaaclab.bat` cannot find a Python interpreter.** It checks `CONDA_PREFIX`, falls back to a bundled `_isaac_sim\python.bat` that the pip install does not create, and its third branch, meant for exactly this layout, is dead code:
+**2. `isaaclab.bat` can't find a Python interpreter.** It checks `CONDA_PREFIX`, falls back to a bundled `_isaac_sim\python.bat` that the pip install doesn't create, and its third branch, meant for exactly this layout, is dead code:
 
 ```bat
 if not exist "%python_exe%" (
@@ -138,17 +138,17 @@ if not exist "%python_exe%" (
     if %ERRORLEVEL% equ 0 (
 ```
 
-`%ERRORLEVEL%` inside a parenthesized block is expanded when the block is parsed, before `pip show` has run, so the test reads a stale value. `VIRTUAL_ENV` is never consulted. Call the venv interpreter directly. Isaac Lab's own documentation offers this as the alternative invocation.
+The batch interpreter expands `%ERRORLEVEL%` inside a parenthesized block at parse time, before `pip show` has run, so the test reads a stale value. `VIRTUAL_ENV` is never consulted. Call the venv interpreter directly. Isaac Lab's own documentation offers this as the alternative invocation.
 
 **3. `torchaudio` goes missing.** `isaacsim-core` pins `torchaudio==2.7.0`, and installing the CUDA builds of torch and torchvision alone drops it. Install all three from the cu128 index together.
 
-**4. The RL extras silently downgrade the GPU build.** `isaaclab_rl[all]` pulls `stable-baselines3`, which requires `torch>=2.8`, so pip replaces the pinned 2.7.0+cu128 with a CPU build of a newer torch. Nothing errors. Training then runs on the CPU. Install `isaaclab_rl[rsl-rl]` instead of `[all]` unless another framework is needed, and re-pin torch afterwards either way.
+**4. The RL extras silently downgrade the GPU build.** `isaaclab_rl[all]` pulls `stable-baselines3`, which requires `torch>=2.8`, so pip replaces the pinned 2.7.0+cu128 with a CPU build of a newer torch. Nothing errors. Training then runs on the CPU. Install `isaaclab_rl[rsl-rl]` instead of `[all]` unless you need another framework, and re-pin torch afterwards either way.
 
-**5. `tensordict` crashes the process on import.** It is a compiled extension tightly coupled to the torch ABI, and `rsl-rl-lib` depends on it. If it was resolved while the wrong torch was installed, re-pinning torch afterwards leaves it linked against symbols that no longer exist. The failure is `Windows fatal exception: access violation` inside `tensordict/utils.py`, not an `ImportError`. Install `tensordict==0.8.3` to match torch 2.7.
+**5. `tensordict` crashes the process on import.** It's a compiled extension tightly coupled to the torch binary interface, and `rsl-rl-lib` depends on it. If pip resolved it while the wrong torch was in place, re-pinning torch afterwards leaves it linked against symbols that no longer exist. The failure is `Windows fatal exception: access violation` inside `tensordict/utils.py`, not an `ImportError`. Install `tensordict==0.8.3` to match torch 2.7.
 
-Defects 4 and 5 share a cause. Re-pinning torch after the fact is not enough, and anything already resolved against the wrong torch that carries compiled code has to be re-resolved too.
+Defects 4 and 5 share a cause. Re-pinning torch after the fact isn't enough, and anything already resolved against the wrong torch that carries compiled code has to be re-resolved too.
 
-**6. Recorded video flashes black every other frame.** `--video` captures once per environment step, but the simulator renders every `decimation` steps, so half the captures grab a buffer that was never drawn. They come out as uniform dark frames, and the result flickers hard. `env.sim.render_interval=1` does not fix it. A 2500-step capture on 2026-08-23 still came back with 1250 black frames, the even-numbered ones. Checking for it is quick:
+**6. Recorded video flashes black every other frame.** `--video` captures once per environment step, but the simulator renders every `decimation` steps, so half the captures grab a buffer that was never drawn. They come out as uniform dark frames, and the result flickers hard. `env.sim.render_interval=1` doesn't fix it. A 2500-step capture on 2026-08-23 still came back with 1250 black frames, the even-numbered ones. One command checks for it:
 
 ```bash
 ffmpeg -v error -i clip.mp4 -vf "signalstats,metadata=print:key=lavfi.signalstats.YAVG:file=-" -f null -
@@ -156,4 +156,4 @@ ffmpeg -v error -i clip.mp4 -vf "signalstats,metadata=print:key=lavfi.signalstat
 
 A clean clip holds YAVG within a couple of units. Blank frames read as a flat value far below the rest, and dropping the even frames is `select='mod(n,2)'` plus a re-encode.
 
-**7. `scp` and `sftp` cannot copy anything off the host.** The shell profile prints text on every session and both transfer protocols read that banner as protocol data, giving `Received message too long`. Details and a workaround are in [Copying files off the host](#copying-files-off-the-host) above.
+**7. `scp` and `sftp` can't copy anything off the host.** The shell profile prints text on every session and both transfer protocols read that banner as protocol data, giving `Received message too long`. [Copying files off the host](#copying-files-off-the-host) has the detail and a workaround.

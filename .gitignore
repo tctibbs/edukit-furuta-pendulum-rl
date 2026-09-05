@@ -18,6 +18,3 @@ venv/
 
 # OS
 .DS_Store
-
-# Vale packages, synced by `just vale-sync`. Third-party, not redistributed here.
-.vale/styles/Google/

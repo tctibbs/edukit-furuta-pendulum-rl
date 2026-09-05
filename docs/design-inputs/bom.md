@@ -1,18 +1,18 @@
-# Bill of Materials: STEVAL-EDUKIT01 Rotary Inverted Pendulum
+# Bill of materials for the STEVAL-EDUKIT01 rotary inverted pendulum
 
-Hardware under test. Quantities and part descriptions are from the official ST bill of materials (version 2). Electrical context is from the ST product page and the Edukit Manual (Rev. 3, 173 pp).
+Hardware under test. Quantities and part descriptions are from version 2 of the official ST bill of materials. Electrical context is from the ST product page and from the Edukit Manual, Rev. 3, 173 pp.
 
 ## Electronics
 
 | # | Item | Qty | Order code | Notes |
 |---|---|---|---|---|
-| E1 | MCU development board | 1 | NUCLEO-F401RE | STM32F401RE, Cortex-M4F @ 84 MHz, ST-LINK/V2-1 onboard |
+| E1 | Microcontroller development board | 1 | NUCLEO-F401RE | STM32F401RE, Cortex-M4F @ 84 MHz, onboard ST-LINK/V2-1 |
 | E2 | Stepper driver expansion board | 1 | X-NUCLEO-IHM01A1 | L6474PD microstepping driver, stacks on E1 |
 | E3 | Stepper motor | 1 | Custom (GH) | 12 V, 0.8 A, 10 W. NEMA-17 form factor, 200 full steps/rev per the manual |
 | E4 | Rotary encoder | 1 | Custom (GH) | LPD3806-600BM-G5-24C per the manual. 600 PPR, 2400 counts/rev after 4x decode, NPN open collector, 5 to 24 V |
 | E5 | Power supply | 1 | Any | 12 V, 1 A, 12 W |
 | E6 | Stepper motor cable | 1 | Any | |
-| E7 | USB cable, Type-A to Mini-B | 1 | n/a | ST-LINK programming, power, and the 230400 baud serial link. Not itemized in the ST BOM |
+| E7 | USB cable, Type-A to Mini-B | 1 | n/a | ST-LINK programming, power, and the 230400 baud serial link. Not itemized in the ST bill of materials |
 
 ## Mechanical
 

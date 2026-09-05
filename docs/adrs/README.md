@@ -1,6 +1,6 @@
 # Architecture decision records
 
-A record in this directory is an accepted decision, one per record, numbered in the order the decisions were made.
+Each file here holds one accepted decision in Architecture Decision Record (ADR) form. The numbers run in the order the decisions arrived.
 
 | # | Decision |
 |---|---|

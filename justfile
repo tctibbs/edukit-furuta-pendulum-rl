@@ -22,7 +22,7 @@ vale-sync:
 
 # Check prose against the house style
 [group('dev')]
-prose: vale-sync
+prose:
     vale docs/ README.md
 
 
