@@ -1,8 +1,8 @@
 # ADR-0002: Train on the Windows host, driven headless over SSH
 
-**Context:** [ADR-0001](0001-simulation-environment.md) chose Isaac Lab, which has strict machine requirements.
+**Context:** an earlier Architecture Decision Record (ADR) fixed the simulator. [ADR-0001](0001-simulation-environment.md) chose Isaac Lab and its strict machine requirements.
 
-Isaac Sim's renderer is built on the Kit SDK and needs hardware ray tracing, so NVIDIA lists GPUs without RT cores as unsupported even when training headless. Isaac Sim 5.1.0 also states an RTX 4080 16 GB minimum, 32 GB of system RAM, and Windows 11 or Ubuntu 22.04 to 24.04.
+Isaac Sim's renderer sits on the Kit SDK and needs hardware ray tracing, so NVIDIA lists GPUs without RT cores as unsupported even when training headless. Isaac Sim 5.1.0 also states an RTX 4080 16 GB minimum, 32 GB of system RAM, and Windows 11 or Ubuntu 22.04 to 24.04.
 
 ## Options
 
@@ -12,10 +12,10 @@ Isaac Sim's renderer is built on the Kit SDK and needs hardware ray tracing, so 
 | Linux server | GTX 1080 Ti, which predates RT cores, so Isaac Sim will not run on it at all |
 | macOS workstation | No CUDA GPU. It also holds the serial link to the pendulum, so training here would put the simulator and the hardware on one machine |
 
-**Decision:** Train on the Windows host, headless, driven over SSH. Metrics come back through an SSH port-forward, and rollouts are recorded to video and copied down.
+**Decision:** training runs on the Windows host, headless, driven over SSH. Metrics come back through an SSH port-forward, and rollouts are recorded to video and copied down.
 
-**Consequences:** Training and hardware work live on separate machines, so a run needs network access to the host. They can also proceed at the same time without competing for one machine.
+**Consequences:** training and hardware work live on separate machines, so a run needs network access to the host. They can also proceed at the same time without competing for one machine.
 
 There is no interactive viewport, so debugging happens through logged traces and recorded video. Both `scp` and `sftp` fail against this host, so copying those files down needs the workaround in the [runbook](../runbooks/training-host-setup.md).
 
-Isaac Lab's container workflow is Linux only, so it is foreclosed for as long as the host runs Windows.
+Isaac Lab's container workflow is Linux only and stays out of reach for as long as the host runs Windows.

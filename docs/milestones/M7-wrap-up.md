@@ -1,8 +1,8 @@
-# Milestone 07: Wrap-up
+# Milestone 07: wrap-up
 
 Final cleanup, and room for whatever is worth adding once everything works.
 
 ## Goals
 
-- [ ] A recording of the physical unit swinging up and balancing is committed.
+- [ ] A committed recording shows the physical unit swinging up and balancing.
 - [ ] Add some personality and sparkle.

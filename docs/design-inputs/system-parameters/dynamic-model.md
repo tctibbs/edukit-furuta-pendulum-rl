@@ -1,6 +1,6 @@
 # Validated dynamic model
 
-The manual derives a linearized Furuta model and validates it against a measured frequency response. The linearization is about the upright, so gains designed from this model hold only near it. That is why the manual pairs them with a separate swing-up.
+The manual derives a linearized Furuta model and validates it against a measured frequency response. The linearization is about the upright, so gains designed from this model hold only near it. That's why the manual pairs them with a separate swing-up.
 
 | Symbol | Quantity | Manual | Source |
 |---|---|---|---|
@@ -29,8 +29,8 @@ giving
 
 where $\theta$ is pendulum angle from the gravity vector and $\phi$ is rotor angle. Substituting $L$, $r$ and the normalized shaft inertia reproduces 55.85 and 0.803 (rad/s)^2.
 
-The line above the rearrangement carries an extra $-m \frac{l^{2}}{4} \ddot{\theta}$. The manual drops it in the next step and no published constant reflects it. Carried through it would put $\omega_g^2$ near 32 instead of 55.85, so use the rearranged form.
+The line preceding the rearrangement carries an extra $-m \frac{l^{2}}{4} \ddot{\theta}$. The manual drops it in the next step and no published constant reflects it. Carried through it would put $\omega_g^2$ near 32 instead of 55.85, so use the rearranged form.
 
-The damping coefficient $\gamma$ is not tracked. The manual's own $Q = \omega_g \frac{m l}{\gamma}$ disagrees with the equation of motion above by a factor of $1 / \left(\frac{2}{3} + \frac{2 I_{rotor}}{m L^{2}}\right)$, about 1.47, so it is not a reliable route to $Q$. Derive damping from $Q$ directly, $c = I \omega / Q$, which never needs $\gamma$.
+The damping coefficient $\gamma$ isn't tracked. The manual's own $Q = \omega_g \frac{m l}{\gamma}$ disagrees with the preceding equation of motion by a factor of $1 / \left(\frac{2}{3} + \frac{2 I_{rotor}}{m L^{2}}\right)$, about 1.47, so it isn't a reliable route to $Q$. Derive damping from $Q$ directly, $c = I \omega / Q$, which never needs $\gamma$.
 
 The appendix writes $l$ for the length this table calls $L$, 0.258 m, not the 0.235 m that Table 2 calls $l$. The same letter means different quantities in the two places. Using the rod length throughout reproduces both constants.

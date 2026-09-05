@@ -1,6 +1,6 @@
 # Furuta Pendulum in NVIDIA Isaac Lab: sim-to-real reinforcement learning
 
-Sim-to-real reinforcement learning for a rotary inverted pendulum (Furuta pendulum), trained in NVIDIA Isaac Lab on GPU and deployed to real hardware: the STEVAL-EDUKIT01 educational kit developed by STMicroelectronics with the UCLA Samueli School of Engineering.
+Sim-to-real reinforcement learning for a rotary inverted pendulum of the Furuta type, trained in NVIDIA Isaac Lab on GPU and deployed to real hardware: the STEVAL-EDUKIT01 educational kit developed by STMicroelectronics with the UCLA Samueli School of Engineering.
 
 ## Documentation
 
@@ -13,7 +13,7 @@ Sim-to-real reinforcement learning for a rotary inverted pendulum (Furuta pendul
 
 ## Reference documents
 
-The Edukit Manual and the assembly guides are third-party copyrighted material and are not committed. Fetch them with:
+The Edukit Manual and the assembly guides are third-party copyrighted material and aren't committed. Fetch them with:
 
 ```bash
 ./scripts/fetch_reference_docs.sh

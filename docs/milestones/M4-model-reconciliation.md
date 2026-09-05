@@ -1,4 +1,4 @@
-# Milestone 04: Reconcile the simulation to the measured system
+# Milestone 04: reconcile the simulation to the measured system
 
 Reproduce in simulation the behavior of the measured system from [Milestone 03](M3-hardware-bringup.md).
 
