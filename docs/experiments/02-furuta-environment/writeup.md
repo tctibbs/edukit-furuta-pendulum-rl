@@ -118,7 +118,7 @@ Generating the asset checks the written mass properties against the derivation a
 ..\.venv\Scripts\python.exe scripts\generate_articulation.py --output assets\edukit_pendulum.usda
 ```
 
-The check reads mass, center of mass, and the two transverse inertias back from the saved file and compares them with the derivation. They match, and the check prints `omega_g^2` beside them from the parameters rather than recomputing it from the file. It reads the file on disk, though, not the articulation PhysX builds from it. The values are in the file. Whether they survive loading into PhysX stays untested here.
+The check reads mass, center of mass, and the two transverse inertias back from the saved file and compares them with the derivation. They match, and the check prints `omega_g^2` beside them from the parameters rather than recomputing it from the file. It reads the file on disk, though, not the articulation PhysX builds from it. Whether the values survive loading into PhysX stays untested here.
 
 ### The rotor drive
 
@@ -246,4 +246,4 @@ These rest on one machine and one run per environment count, with no seed set. [
 - [Training host runbook](../../runbooks/training-host-setup.md), the install with the seven defects it carries.
 - [Milestone 02](../../milestones/M2-furuta-model.md), the acceptance criteria this work serves.
 - [The parameter file](../../../config/edukit.yaml), the project's constants. Each value carries its source and its date.
-- Edukit Manual, `docs/reference/Edukit_Manual.pdf`, fetched with `scripts/fetch_reference_docs.sh`. App. D, Pendulum Dynamics page 148 for `L`, `g`, and the normalized shaft inertia. Table 2 page 11 for `r`, the rotor gain, and encoder resolution. App. E page 160 for `apply_acceleration()`. The manual is copyright STMicroelectronics and Prof. William J. Kaiser, UCLA. This write-up cites it rather than reproducing it.
+- Edukit Manual, `docs/reference/Edukit_Manual.pdf`, fetched with `scripts/fetch_reference_docs.sh`. App. D, Pendulum Dynamics page 148 for `L`, `g`, and the normalized shaft inertia. Table 2 page 11 for `r`, the rotor gain, and encoder resolution. App. E page 160 for `apply_acceleration()`. The manual is copyright STMicroelectronics and Prof. William J. Kaiser, UCLA.

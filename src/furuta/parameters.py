@@ -15,6 +15,22 @@ import yaml
 DEFAULT_CONFIG = Path(__file__).resolve().parents[2] / "config" / "edukit.yaml"
 
 
+def gravity_for_tilt(tilt_deg: float, gravity: float) -> tuple[float, float, float]:
+    """Gravity in the base frame for a baseplate rolled by `tilt_deg` about X.
+
+    Rolling the base and tilting gravity against it are the same dynamics, and gravity
+    is a scene setting where the roll would be a change to the asset. With the base
+    rolled by alpha, gravity in base coordinates is `(0, -g sin alpha, -g cos alpha)`.
+
+    The pivot axis lies along the arm, so the tilt appears as a sinusoid in rotor angle
+    rather than a constant offset: at rotor angle phi the hanging equilibrium sits at
+    `-alpha * cos(phi)`, amplitude alpha. Experiment 03's full-circle sweep measured
+    that sinusoid.
+    """
+    alpha = math.radians(tilt_deg)
+    return (0.0, -gravity * math.sin(alpha), -gravity * math.cos(alpha))
+
+
 @dataclass(frozen=True)
 class FurutaParameters:
     """Physical and interface constants, with derived quantities as properties.
@@ -35,6 +51,11 @@ class FurutaParameters:
     loop_rate_hz: float
     physics_rate_hz: float
     encoder_counts_per_rev: int
+    # Fitted by the reconciliation experiment against the full-amplitude ring-down.
+    # Defaults keep older parameter files loading.
+    coulomb_loss_deg_per_half_swing: float = 0.0
+    friction_crossover_deg: float = 0.0
+    quadratic_drag_coeff: float = 0.0
 
     @classmethod
     def from_yaml(cls, path: str | Path | None = None) -> FurutaParameters:
@@ -154,3 +175,14 @@ class FurutaParameters:
     def control_dt_s(self) -> float:
         """Control period in seconds. 2 ms at the hardware's 500 Hz loop."""
         return 1.0 / self.loop_rate_hz
+
+    @property
+    def upright_deadband_rad(self) -> float:
+        """Half the Coulomb loss in radians, the angle stiction can hold against.
+
+        `c` is `radians(delta) * omega_g^2 / 2` for a loss of `delta` per half swing, so
+        the hold angle is `radians(delta) / 2`. `omega_g^2` cancels and no other
+        constant enters. Inside it the encoder reports an angle no controller can act
+        on.
+        """
+        return math.radians(self.coulomb_loss_deg_per_half_swing) / 2.0

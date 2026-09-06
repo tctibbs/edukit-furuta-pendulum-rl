@@ -1,0 +1,47 @@
+# Conditions for the Milestone 04 reconciliation. Both simulations are deterministic and
+# need no seed. They integrate from fixed releases against fixed Experiment 03 captures.
+
+simulations:
+  equation: single-angle pendulum model, workstation, no CUDA and no PhysX
+  physx: Isaac Lab 0.54.2 on the GPU host, RTX 5080, 1024 environments
+
+conditions:  # one code path; before is the after constants zeroed
+  before: viscous only
+  after: viscous + Coulomb + quadratic drag
+
+reconciled_constants:  # written into config/edukit.yaml in the same change
+  quality_factor: 28.7  # viscous, held at the measured free-swing value
+  coulomb_loss_deg_per_half_swing: 0.65  # reconciled from the free-swing 1.07
+  quadratic_drag_coeff: 0.006  # 1/rad, fitted here
+
+ringdown_ladder:
+  releases_deg: [162, 135, 108, 82, 58, 38, 22]  # degrees from hanging, rotor held
+  decay_seconds_per_release: 32
+  analysis: furuta.pump.qeff_vs_amplitude, the same function the hardware capture uses
+  fit: hold viscous Q at 28.7; fit Coulomb and drag to the full-amplitude Q_eff curve
+  physics_rate_hz: [4000, 1000]  # 4 kHz for the host confirmation runs, 1 kHz the production rate
+
+trace_replay:
+  source: docs/experiments/03-hardware-bringup/trace.tsv
+  runs: swing-up (391 samples, 13 ms) joined to the balance hold (25 samples, 200 ms)
+  rotor_command: measured angle, not measured acceleration
+  gap_profiles: [linear, bangbang]  # what to assume inside the 16 logging dropouts
+  physics_rate_hz: [4000, 1000]
+
+hardware:
+  dissipation: docs/experiments/03-hardware-bringup/pump.tsv
+  tilt_sweep: docs/experiments/03-hardware-bringup/sweep.tsv
+  reference_trace: docs/experiments/03-hardware-bringup/trace.tsv
+
+results:
+  dissipation_rms_Q:
+    equation_before: 7.0  # vs hardware, over the 9 bins each curve shares with it
+    equation_after: 1.2
+    physx_before: 6.2
+    physx_after: 1.6
+    physx_vs_equation: 0.9  # worst shared bin after the fit; 1.6 before it
+  trace_closest_deg:  # distance from upright, reconciled constants
+    hardware: 1.6
+    linear_gaps: 91.7
+    bangbang_gaps: 13.9
+    equation: 163.2

@@ -68,7 +68,7 @@ Inference has to run on the board. The 86 ms round trip is more than forty times
 
 ### Measuring the unit
 
-Next comes the unit itself. System identification measures the real machine's lengths, masses, friction and how hard the motor can drive the pendulum. No simulation runs here. The comparison curves below come from the equations and the constants in [`config/edukit.yaml`](../../../config/edukit.yaml).
+System identification measures the real machine's lengths, masses, friction and how hard the motor can drive the pendulum. No simulation runs here. The comparison curves below come from the equations and the constants in [`config/edukit.yaml`](../../../config/edukit.yaml).
 
 The identification battery is one firmware probe per part of the system. Each logs on the board's 500 Hz tick and streams to the workstation. Each capture starts by flashing the matching target.
 
@@ -94,7 +94,7 @@ just hw-probe-freeswing 300
 just freeswing-fit
 ```
 
-Five releases between 37 and 56 degrees give 1.168 Hz, with a spread of 0.003 Hz. The manual's constants predict 1.189 Hz, 1.8 percent high. Fitting the shaft term to the measurement moves `2*I_shaft/(m*L^2)` from the manual's 0.0139 to 0.0181, and the model then predicts 1.174 Hz.
+Five releases between 37 and 56 degrees give 1.168 Hz, with a spread of 0.003 Hz. The manual's constants predict 1.189 Hz, 1.8 percent high. The measured rod length alone brings that to 1.174 Hz. Fitting the shaft term as well moves `2*I_shaft/(m*L^2)` from the manual's 0.0139 to 0.0181, and the model predicts 1.170 Hz.
 
 ![Predicted period for each candidate rod length, against the bench](./figures/freeswing_period.png)
 
@@ -106,7 +106,7 @@ The decay is the other half of that capture. A pivot damped only by drag can't c
 
 *One release of five.*
 
-A pendulum bleeds energy to friction as it swings, and the "quality factor" Q is a single number for how slowly. A higher Q means it keeps swinging longer. Q combines two types of friction:
+A pendulum bleeds energy to friction as it swings, and the "quality factor" Q is a single number for how slowly. A higher Q means it keeps swinging longer. Q combines viscous and dry friction:
 
 - Viscous friction is drag that grows with speed, like moving through honey.
 - Dry friction, also called Coulomb friction, is a fixed bite taken every swing whatever the speed, like a rusty hinge.
@@ -130,7 +130,7 @@ just hw-probe-pump 420
 
 The orange line is the free-swing fit from the previous section. Past 60 degrees the measured Q drops below it, a large-amplitude drag the fit has no term for.
 
-A model fitted only on small swings looks correct and is wrong at the amplitudes a swing-up controller has to climb through.
+The free-swing fit holds below 60 degrees and overstates Q past it, across the amplitudes swing-up climbs through.
 
 #### Where upright sits as the arm turns
 
@@ -162,7 +162,7 @@ The height axis is the pendulum's angle up from hanging. Zero is the bottom and 
 
 ### Where the model stands
 
-The simulation's pivot has only viscous damping, and its base is level. It has no term for the dry bite of 1.07 degrees per half swing, none for the extra drag past 60 degrees, and none for the 0.51 degree tilt. This experiment measures the bite and the tilt, and both are ready to add. The drag comes out as a curve, and nothing yet fits a term to it. Swing-up spends its time at those amplitudes. That's the gap that matters.
+The simulation's pivot has only viscous damping, and its base is level. It has no term for the dry bite of 1.07 degrees per half swing, none for the extra drag past 60 degrees, and none for the 0.51 degree tilt. This experiment measures the bite and the tilt, and both are ready to add. The drag comes out as a curve, and nothing yet fits a term to it. Swing-up spends its time at those amplitudes.
 
 The suspended mode and the friction fit come from a hand-released capture, the last measurement here a person has to perform. Mode `d` releases on its own and agrees on the frequency to 0.2 percent. But its lowest target is 57.9 degrees and its window ends before the big releases settle, leaving its own small-swing fit unusable. Low targets in `IDENT_RINGDOWN_AMPLITUDES` and a longer hold would move both constants onto the autonomous probe.
 
@@ -184,7 +184,7 @@ These are one unit's numbers taken across sessions in August and September. A ha
 
 ## References
 
-- [Milestone 03](../../milestones/M3-hardware-bringup.md), the milestone this serves.
+- [Milestone 03](../../milestones/M3-hardware-bringup.md), the exit gates this experiment has to clear.
 - [Running the Edukit firmware](../../runbooks/edukit-firmware.md), flashing, the logging modes, the wire format, and the rebuild and tuning procedure.
 - [Edukit assembly](../../runbooks/edukit-assembly.md), the encoder wiring this depended on.
 - [Design inputs](../../design-inputs/README.md), which record the constants and their provenance.

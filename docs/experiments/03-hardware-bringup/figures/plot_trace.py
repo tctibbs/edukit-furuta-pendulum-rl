@@ -5,8 +5,7 @@
 """Plot the golden trace, a swing up from hanging then a hold at the top.
 
 Reads a mode u capture, the stock controller's whole episode. The balance portion logs
-at five samples a second against the swing-up's five hundred, so the hold is drawn from
-far fewer points.
+at five samples a second against the swing-up's five hundred.
 
     just figures 03
 """

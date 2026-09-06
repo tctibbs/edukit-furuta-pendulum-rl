@@ -88,7 +88,7 @@ def configured_model():
 def draw_model_vs_reality(result, trace, path: Path) -> None:
     """The measured swing against the decay the configured constants predict.
 
-    The model envelope is a pure exponential, which approaches rest without reaching it.
+    The model envelope is a pure exponential. It approaches rest without reaching it.
     """
     peaks = result.peaks
     if not peaks:
@@ -118,10 +118,9 @@ def draw_model_vs_reality(result, trace, path: Path) -> None:
     )
     axes.plot(fine, [-e for e in model_env], "--", color=_style.MODEL, linewidth=1.9)
 
-    # Where the real pendulum stopped.
-    # Taken from the trace. `peaks` is filtered well above this level.
     # "Stopped" is the last moment the swing exceeded one degree, about seven encoder
-    # counts. Below that the reading is quantization.
+    # counts. Below that the reading is quantization. `peaks` is filtered well above
+    # this level.
     moving = [t for t, a in zip(times, angles, strict=True) if abs(a) > 1.0]
     stopped = max(moving) if moving else None
     if stopped and stopped < max(times):
