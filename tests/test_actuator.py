@@ -89,7 +89,6 @@ def test_position_is_quantized_to_microsteps(
         remainder = torch.remainder(pos, actuator.quantum)
         off_lattice = torch.minimum(remainder, actuator.quantum - remainder)
         # Float32 cannot land exactly on the lattice. The error grows with position.
-        # The tolerance is a hundred-thousandth of a microstep.
         assert off_lattice.max().item() < actuator.quantum * 1e-5
 
 

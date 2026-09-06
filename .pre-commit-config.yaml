@@ -1,4 +1,6 @@
-exclude: ^docs/reference/
+# The reference pack is git-ignored. The Google style package is vendored upstream and
+# must stay byte-identical to what `vale sync` writes.
+exclude: ^(docs/reference/|\.vale/styles/Google/)
 
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
@@ -25,11 +27,15 @@ repos:
   # Documentation house style.
   - repo: local
     hooks:
+      # Not markdown only: an em dash in a matplotlib axis label reaches the rendered
+      # figure, where no prose check can see it.
       - id: no-em-dashes
         name: no em dashes or en dashes
         entry: '[—–]'
         language: pygrep
-        types: [markdown]
+        types_or: [markdown, python, yaml, shell, powershell]
+        # This file is excluded because it contains the pattern itself.
+        exclude: ^(\.vale/styles/Google/|\.pre-commit-config\.yaml$)
 
       - id: no-marketing-language
         name: no marketing language

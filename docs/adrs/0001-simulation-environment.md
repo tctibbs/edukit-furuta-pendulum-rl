@@ -16,7 +16,7 @@ The rotor is a stepper taking acceleration commands, a double integrator with mi
 
 **Decision:** use Isaac Lab on Isaac Sim.
 
-For four states the custom integrator is arguably the better choice, and it reproduces the manual's dynamics exactly. That said, a goal of this project is to learn Isaac Lab: the Direct-workflow environment API, building a USD articulation from parameters, GPU-parallel rollouts, and config-driven domain randomization. A hand-written integrator exercises none of those, and this pendulum is small enough to serve as a good introduction.
+For four states the custom integrator is arguably the better choice, and it reproduces the manual's dynamics exactly. That said, a goal of this project is to learn Isaac Lab: the Direct-workflow environment API, building a USD articulation from parameters, GPU-parallel rollouts, and config-driven domain randomization. A hand-written integrator exercises none of those, and this pendulum is small enough to learn all four on.
 
 **Consequences:** Training needs a CUDA GPU, so it happens on a separate training host ([ADR-0002](0002-training-host.md)). The dependency surface is large: Isaac Sim, Omniverse Kit, CUDA, PyTorch, with API churn between releases. [Milestone 01](../milestones/M1-isaac-lab-bringup.md) pins those versions in `pyproject.toml` under `[tool.furuta.simulation-stack]`.
 

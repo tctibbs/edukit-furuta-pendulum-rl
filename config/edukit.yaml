@@ -2,8 +2,8 @@
 #
 # The simulation reads its physical constants from this file. A value measured on this unit
 # carries the date it was taken and the manual's nominal it replaced. The rest are the
-# manual's nominal for the kit as designed. Experiment 03 measured the geometry and the
-# free swing.
+# manual's nominal values for the kit as designed. Experiment 03 measured the unit;
+# experiment 04 refitted the loss terms across the full range of swing.
 
 geometry:
   pendulum_length_m: 0.265      # L, measured 2026-08-24. The manual's nominal is 0.258
@@ -14,6 +14,9 @@ geometry:
 dynamics:
   normalized_shaft_inertia: 0.0181   # 2*I_shaft/(m*L^2), fitted 2026-08-24 to the measured suspended mode. The manual's nominal is 0.0139
   quality_factor: 28.7               # Q of the suspended oscillation, measured 2026-08-24. The manual's nominal is 20.0
+  coulomb_loss_deg_per_half_swing: 0.65   # Dry friction. Experiment 03 fitted 1.07 on small swings alone; experiment 04 refitted it against the full ladder with a drag term
+  quadratic_drag_coeff: 0.006             # 1/rad, fitted 2026-09-05 to the large-amplitude ring-down. Torque over inertia is -coeff * |rate| * rate
+  friction_crossover_deg: 19.5            # Below this swing, dry friction is the larger loss. Follows from the two terms above
 
 actuator:
   full_steps_per_rev: 200            # From the manual, Sec. 4, Table 2, page 11

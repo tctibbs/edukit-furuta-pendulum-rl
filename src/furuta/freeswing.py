@@ -7,10 +7,9 @@ linewidth is f/Q, about 0.06 Hz, so resolving the 2 percent gate by transform wo
 a 42 second record. The trace has decayed into quantization noise well before that.
 Counting zero crossings over the cycles that do exist gives the frequency directly.
 
-The decay answers a second question. `parameters.py` models pivot loss as viscous, `c =
-I*omega/Q`. The two mechanisms leave different fingerprints in the peaks: viscous drag
-decays the envelope exponentially, Coulomb friction decays it linearly. Fitting both
-says which dominates.
+`parameters.py` models pivot loss as viscous, `c = I*omega/Q`. The two mechanisms leave
+different fingerprints in the peaks: viscous drag decays the envelope exponentially,
+Coulomb friction decays it linearly. Fitting both says which dominates.
 
 Standard library only.
 """
@@ -232,8 +231,8 @@ def frequency_from_crossings(
 ) -> tuple[float, int]:
     """Estimate frequency by timing zero crossings, and report the cycles counted.
 
-    Both details below came from feeding the fit a synthetic trace whose answer was
-    known.
+    The deadband and the interpolation below both came from feeding the fit a synthetic
+    trace whose answer was known.
 
     A raw sign test overcounts. The encoder quantizes to about 0.15 degrees, so as the
     pendulum drifts through rest the reported angle dithers across zero and every

@@ -3,7 +3,7 @@
 Mode d pumps the pendulum to a series of target amplitudes, cuts drive, and logs each
 free decay (`docs/runbooks/edukit-firmware.md`). This module reports the effective
 quality factor against amplitude, which the small-angle fit in `freeswing.py` cannot
-reach. Two things that module does not do:
+reach. What that module does not do:
 
 - split one capture into its pump-then-decay segments, on the drive state column, so
   each target amplitude is fitted on its own decay

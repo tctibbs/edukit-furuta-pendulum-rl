@@ -1,6 +1,6 @@
 """Flash a firmware image, skipping the write when the board already carries it.
 
-Targets are declared in `config/firmware.yaml`, so adding one is a config edit.
+Targets are declared in `config/firmware.yaml`.
 
 This board arrived running a third-party stepper console. The script reads the flash and
 saves the dump before overwriting, because no other copy of that image is known.

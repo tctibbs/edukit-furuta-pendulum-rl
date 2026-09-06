@@ -4,8 +4,8 @@ Mode `w` streams one line per control period, microseconds and encoder counts se
 by a tab, with the rotor held. A free arm would make it a coupled two-degree-of-freedom
 system, whose frequency is not the suspended mode the manual publishes.
 
-Timestamps come from the board. At about 6.5 kB/s of samples against 23 kB/s of link,
-throughput holds the rate.
+Timestamps come from the board. Samples run about 6.5 kB/s against 23 kB/s of link. No
+sample is lost to bandwidth.
 
 The capture runs for the duration once the sample header arrives. Take several releases
 within one capture; `furuta.freeswing` segments them.

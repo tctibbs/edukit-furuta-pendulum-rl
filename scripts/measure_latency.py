@@ -6,8 +6,7 @@ this link, against a 2 ms budget.
 The stock firmware runs its own 500 Hz loop and takes no per-cycle command from the
 host, so "host commands, host observes" cannot be timed directly. The round trip at a
 prompt can be. The firmware echoes each character it receives, and the interval between
-writing a byte and seeing it return is one full host to board to host traversal, which
-bounds the achievable loop rate.
+writing a byte and seeing it return is one full host to board to host traversal.
 
 That interval is USB CDC latency plus the firmware's service interval. At 230400 baud a
 byte is about 43 microseconds on the wire, so anything in the millisecond range is

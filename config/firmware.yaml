@@ -1,7 +1,7 @@
 # Firmware images that can be written to the Edukit board.
 #
-# Adding a target is an edit to this file. A target needs a path and a description.
-# Everything else is optional and falls back to `defaults`.
+# A target needs a path and a description. Everything else is optional and falls back to
+# `defaults`.
 #
 #   path         where the .bin lives, relative to the repository root
 #   description  one line, shown by `just hw-targets`
@@ -9,7 +9,7 @@
 #                running. Omit it when the image does not announce itself.
 #   build_id     the identifier this build prints after `BUILD ` at startup, set by
 #                FIRMWARE_BUILD in edukit_system.h. Only images built from this
-#                project carry one.
+#                project carry one. Reading it back identifies the flashed image.
 #   flash_base   overrides the default, for a part with a different memory map
 #   flash_size   overrides the default
 #
@@ -37,14 +37,12 @@ targets:
   bench:
     path: build/firmware/edukit-bench.bin
     description: Bench instrumentation. Retuned swing-up, mode w free-swing logger, mode y tilt sweep
-    # `build_id` is the string after `BUILD ` in the startup banner, so the board can be
-    # asked what it runs. Stock images carry no such string.
     build_id: bench
     banner: System Starting Prepare to Enter Mode Selection
 
   # The mode is compile-time (IDENT_AUTOSTART_MODE), so each probe is a separate build
   # that boots straight into it. The rebuild recipe and the make caveat are in the
-  # firmware runbook. Flash one, capture, then the next.
+  # firmware runbook.
   ident-sweep:
     path: build/firmware/edukit-ident-sweep.bin
     description: Autostart 'y', boots probe-sweep (baseplate tilt). Drives the motor slowly through a full turn

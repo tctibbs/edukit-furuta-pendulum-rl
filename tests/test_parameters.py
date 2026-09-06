@@ -44,8 +44,8 @@ def test_derivation_reproduces_the_manual_without_shaft(
 ) -> None:
     """Manual App. D gives 57.01 (rad/s)^2 for the rod alone.
 
-    Reproducing both published numbers shows the shaft term is understood and not
-    fitted to hit the headline figure.
+    The two published numbers differ only by the shaft term. Matching both fixes that
+    term independently instead of letting it absorb error in 55.85.
     """
     bare = FurutaParameters(
         **{**manual_nominal.__dict__, "normalized_shaft_inertia": 0.0}

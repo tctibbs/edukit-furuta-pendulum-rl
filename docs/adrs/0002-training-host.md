@@ -18,4 +18,4 @@ Isaac Sim's renderer sits on the Kit SDK and needs hardware ray tracing, so NVID
 
 There is no interactive viewport, so debugging happens through logged traces and recorded video. Both `scp` and `sftp` fail against this host, so copying those files down needs the workaround in the [runbook](../runbooks/training-host-setup.md).
 
-Isaac Lab's container workflow is Linux only and stays out of reach for as long as the host runs Windows.
+Isaac Lab's container workflow is Linux only and unavailable while the host runs Windows.
