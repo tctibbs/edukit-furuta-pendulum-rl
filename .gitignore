@@ -6,8 +6,15 @@ docs/reference/*
 # Local tooling and machine-specific notes
 .claude
 
-# Third-party source trees, extracted locally. Not redistributable.
+# Third-party source trees, extracted locally. Not redistributable. `firmware/` is the
+# stock Edukit source this project's modes are built from; it carries no LICENSE, so it
+# is never committed. See .claude/rules/publishing.md.
 vendor/
+firmware/
+
+# Firmware images and other build output, including the mode images
+# docs/runbooks/edukit-firmware.md stages under build/firmware/.
+build/
 
 # Python
 __pycache__/

@@ -1,0 +1,185 @@
+# /// script
+# requires-python = ">=3.11"
+# dependencies = ["torch"]
+# ///
+r"""Export a trained balance policy's actor as a C header, with test vectors.
+
+The board runs the actor and nothing else: a 5-32-32-1 multilayer perceptron with ELU
+activations, reading the five observations the environment builds and emitting one
+normalised action. This writes the weights as `static const float` arrays in the
+row-major layout the board code expects (`board/policy.c`), and beside them a JSON file
+of observation vectors with the outputs PyTorch computes for them, so the C forward can
+be checked bit for bit within float tolerance before anything is flashed.
+
+    uv run scripts/export_policy.py <run>/model_299.pt --no-squash-actions
+
+with `--header` and `--vectors` naming the outputs, default `board/policy_weights.h` and
+`board/policy_vectors.json`.
+
+`--squash-actions` or `--no-squash-actions` is required, and it has to be whatever
+`squash_actions` was in the task config the checkpoint was trained under: the
+environment maps the action through `tanh` before the actuator when it is set
+(`FurutaEnv._pre_physics_step`, src/furuta/env.py) and lets the actuator clamp it
+otherwise, and the two differ by up to 24 percent of the bound, at a raw action of
+magnitude 1. The checkpoint does not record it, so the caller has to. The balance tasks
+leave it off, and no task here turns it on, so the board side exists ahead of a
+task that needs it. The header
+carries the answer as `POLICY_SQUASH_ACTIONS`, and `policy_command` in board/policy.c
+follows it.
+
+The checkpoint is rsl_rl's `model_state_dict`; only the `actor.*` tensors are read. The
+exploration `std` is not exported: the board runs the mean action, as evaluation does.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import math
+from pathlib import Path
+
+import torch
+
+LAYERS = ("actor.0", "actor.2", "actor.4")
+NUM_OBS = 5
+
+
+def elu(x: torch.Tensor) -> torch.Tensor:
+    """ELU with alpha 1, the activation rsl_rl's ActorCritic was built with."""
+    return torch.where(x > 0, x, torch.expm1(x))
+
+
+def forward(state: dict[str, torch.Tensor], obs: torch.Tensor) -> torch.Tensor:
+    """The actor's mean action, as float32, layer by layer."""
+    x = obs.to(torch.float32)
+    for i, name in enumerate(LAYERS):
+        x = x @ state[f"{name}.weight"].T + state[f"{name}.bias"]
+        if i < len(LAYERS) - 1:
+            x = elu(x)
+    return x.squeeze(-1)
+
+
+def c_literal(value: float) -> str:
+    """A float constant with nine significant digits, always a valid C token.
+
+    `%.9g` drops the point from an integer-valued number, and `1f` is not a floating
+    constant in C: clang reads it as a decimal integer with a stray suffix. A point is
+    put back whenever the text has neither a point nor an exponent.
+    """
+    if not math.isfinite(value):
+        raise ValueError(
+            f"non-finite weight {value!r} cannot be written as a C constant"
+        )
+    text = f"{value:.9g}"
+    if "." not in text and "e" not in text:
+        text += ".0"
+    return text + "f"
+
+
+def c_array(name: str, values: torch.Tensor, per_line: int = 8) -> str:
+    """One `static const float` array, row-major, nine significant digits."""
+    flat = [c_literal(v) for v in values.flatten().tolist()]
+    rows = [", ".join(flat[i : i + per_line]) for i in range(0, len(flat), per_line)]
+    body = ",\n    ".join(rows)
+    return f"static const float {name}[{values.numel()}] = {{\n    {body}\n}};\n"
+
+
+def main() -> int:
+    """Write the header and the test vectors."""
+    parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    parser.add_argument("checkpoint")
+    parser.add_argument("--header", default="board/policy_weights.h")
+    parser.add_argument("--vectors", default="board/policy_vectors.json")
+    parser.add_argument("--count", type=int, default=64, help="test vectors to write")
+    parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument(
+        "--squash-actions",
+        action=argparse.BooleanOptionalAction,
+        required=True,
+        help=(
+            "whether the training task set `squash_actions`, so the board maps the "
+            "action through tanh (on) or clamps it to [-1, 1] (off) before scaling"
+        ),
+    )
+    args = parser.parse_args()
+
+    checkpoint = torch.load(args.checkpoint, map_location="cpu", weights_only=False)
+    state = {
+        k: v.to(torch.float32)
+        for k, v in checkpoint["model_state_dict"].items()
+        if k.startswith("actor.")
+    }
+    widths = [state[f"{n}.weight"].shape[0] for n in LAYERS]
+    if state["actor.0.weight"].shape[1] != NUM_OBS or widths[-1] != 1:
+        raise SystemExit(
+            f"unexpected actor shape: {widths} from {NUM_OBS} observations"
+        )
+
+    source = "/".join(Path(args.checkpoint).parts[-3:])
+    lines = [
+        "/* Generated by scripts/export_policy.py; do not edit.",
+        f" * Source checkpoint: {source}",
+        f" * Iteration: {checkpoint.get('iter', 'unknown')}",
+        " * Layout: row-major, W[out][in]; ELU (alpha 1) after the first two layers;",
+        " * the last layer's single output is the normalised action, bounded to",
+        " * [-1, 1] by tanh when POLICY_SQUASH_ACTIONS is 1 and by a clamp when it is",
+        " * 0, as the training task's `squash_actions` had it. The exploration std is",
+        " * not exported. */",
+        "#ifndef POLICY_WEIGHTS_H",
+        "#define POLICY_WEIGHTS_H",
+        "",
+        f"#define POLICY_WEIGHTS_NUM_OBS {NUM_OBS}",
+        f"#define POLICY_HIDDEN_1 {widths[0]}",
+        f"#define POLICY_HIDDEN_2 {widths[1]}",
+        f"#define POLICY_SQUASH_ACTIONS {int(args.squash_actions)}",
+        "",
+        c_array("POLICY_W1", state["actor.0.weight"]),
+        c_array("POLICY_B1", state["actor.0.bias"]),
+        c_array("POLICY_W2", state["actor.2.weight"]),
+        c_array("POLICY_B2", state["actor.2.bias"]),
+        c_array("POLICY_W3", state["actor.4.weight"]),
+        c_array("POLICY_B3", state["actor.4.bias"]),
+        "#endif /* POLICY_WEIGHTS_H */",
+        "",
+    ]
+    header = Path(args.header)
+    header.parent.mkdir(parents=True, exist_ok=True)
+    header.write_text("\n".join(lines))
+
+    # Test vectors across the observation ranges the policy meets: tilt within 20
+    # degrees, pendulum rate within 4 rad/s, arm within pi, arm rate within 8 rad/s.
+    generator = torch.Generator().manual_seed(args.seed)
+    tilt = (torch.rand(args.count, generator=generator) * 2 - 1) * math.radians(20)
+    obs = torch.stack(
+        [
+            torch.cos(tilt),
+            torch.sin(tilt),
+            (torch.rand(args.count, generator=generator) * 2 - 1) * 4.0,
+            (torch.rand(args.count, generator=generator) * 2 - 1) * math.pi,
+            (torch.rand(args.count, generator=generator) * 2 - 1) * 8.0,
+        ],
+        dim=-1,
+    )
+    out = forward(state, obs)
+    vectors = Path(args.vectors)
+    vectors.write_text(
+        json.dumps(
+            {
+                "checkpoint": source,
+                "squash_actions": bool(args.squash_actions),
+                "observations": obs.tolist(),
+                "actions": out.tolist(),
+            },
+            indent=1,
+        )
+        + "\n"
+    )
+    print(f"wrote {header} ({header.stat().st_size} bytes)")
+    print(f"wrote {vectors} ({args.count} vectors)")
+    lo, hi = out.min().item(), out.max().item()
+    print(f"action range over the vectors: {lo:.3f} to {hi:.3f}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

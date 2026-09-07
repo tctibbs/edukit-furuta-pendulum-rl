@@ -1,0 +1,209 @@
+# Experiment 05 pinned configuration. This file is the record for this experiment and is
+# never regenerated from the live repo config; see experiment 02's model_spec.py for why.
+
+task: Furuta-Balance-Direct-v0
+play_task: Furuta-Balance-Direct-Play-v0
+
+simulation:  # config/edukit.yaml as reconciled by experiment 04, carried into PhysX
+  quality_factor: 28.7
+  coulomb_loss_deg_per_half_swing: 0.65   # applied as a per-substep pivot torque
+  quadratic_drag_coeff: 0.006             # 1/rad, likewise
+  gravity_m_s2: 9.806
+
+environment:
+  num_envs: 1024              # 4096 never finishes scene creation; see logbook.md run 1
+  episode_length_s: 10.0      # training; the gate is scored on 30 s Play episodes
+  control_rate_hz: 500
+  physics_rate_hz: 1000
+  velocity_window: 16         # slope estimator samples; 2 reproduces plain differencing
+  reset:
+    pendulum_angle_rad: [-0.035, 0.035]   # +/- 2 deg about upright
+    pendulum_rate_rad_s: [-0.25, 0.25]
+    rotor_angle_rad: [-0.5, 0.5]
+    rotor_rate_rad_s: [-0.5, 0.5]
+  termination:
+    max_pendulum_angle_rad: 0.35          # 20 deg
+    max_rotor_angle_rad: 1.5708           # pi/2, the travel the +/-90 deg tilt sweep covered
+  reward:
+    alive: 1.0
+    upright: 1.0              # 1 - (theta/theta_max)^2, deadband 0.325 deg (radians(coulomb)/2, derived)
+    terminated: -2.0
+    rotor_travel: -0.05       # excursion past 0.35 rad, not absolute angle
+    action: -0.01
+    action_rate: -0.01
+    pendulum_rate: -0.005
+
+agent:
+  seeds: [1, 2, 3, 4, 5]
+  num_steps_per_env: 128
+  max_iterations: 300
+  policy:
+    class_name: ActorCritic
+    actor_hidden_dims: [32, 32]
+    critic_hidden_dims: [32, 32]
+    activation: elu
+    init_noise_std: 1.0       # 0.3 tested and strictly worse; logbook.md run 4
+  algorithm:
+    class_name: PPO
+    num_learning_epochs: 5
+    num_mini_batches: 4
+    learning_rate: 0.001
+    schedule: adaptive
+    gamma: 0.999              # 0.99 at 500 Hz is a 0.2 s horizon; see rsl_rl_ppo_cfg.py
+    lam: 0.99
+    entropy_coef: 0.005
+    desired_kl: 0.01
+    clip_param: 0.2
+    max_grad_norm: 1.0
+    value_loss_coef: 1.0
+
+evaluation:
+  episodes_per_seed: 256
+  episode_length_s: 30.0
+  hold_envelope_deg: 3.0      # the window at which stock firmware engages balance
+  recover_window_s: 1.0
+  kicks_rad_s_fine: [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]   # seed 1
+  kicks_rad_s_coarse: [0, 0.2, 0.4, 0.6, 0.8, 1.0]                          # seeds 2-5
+  eval_seeds: [101, 102, 103, 104, 105]
+
+stack:
+  isaacsim: 5.1.0
+  isaaclab: 0.54.2
+  rsl_rl: 3.1.2
+  torch: 2.7.0+cu128
+  hardware: RTX 5080 16 GB, driver 591.86
+
+handover:  # the scripted pump handing over to the trained policy, Milestone 05's second goal
+  script: scripts/scripted_swingup.py
+  task: Furuta-SwingUp-Direct-Play-v0   # hanging start, pi travel bound, 40 s episodes here
+  checkpoint: logs/rsl_rl/furuta_balance/seed1/model_299.pt
+  num_envs: 256
+  seed: 1
+  duration_s: 40.0
+  physics_rate_hz: [4000, 1000]         # 4000 is the rate the pump was shown to arrive at; 1000 is the rate the policy trained at
+  pump:
+    law: a_max * sign(pendulum_rate * cos(tilt))
+    acceleration_rad_s2: 11.78
+    governor_allowance_rad: 2.0         # brake when the stopping distance would pass 95 percent of this
+  handover_set:
+    tilt_rad: 0.35
+    unstable_mode_rad_s: [1.011, 0.6]   # rate + 7.351 * tilt; the full recoverable set, then the policy's measured catch capacity
+  hold:
+    envelope_deg: 3.0
+    trailing_window_s: 5.0
+  reference:                            # experiment 03's logged trace, recounted from trace.tsv
+    climb_s: 8.01
+    reversals_to_arrival: 14
+    arrival_rate_rad_s: 2.0             # from the last five samples; outside the 1.011 rad/s set the 11.78 rad/s^2 model can catch
+  accel_bound_sweep_rad_s2: [15, 20, 30]  # the pump's bound only; the catch controllers keep 11.78. Runs at 30 s, 4 kHz
+  baseline_at_configured_bound:
+    outcome: no episode reached the recoverable set in 40 s
+    plateau_from_hanging_deg: 116.4
+    peak_pendulum_rate_rad_s: 12.4        # 14.7 needed for vertical
+    governor_braking_fraction: 0.05
+
+momentum_follow_on:  # the balance task reset across the recoverable set
+  task: Furuta-Balance-Momentum-Direct-v0
+  play_task: Furuta-Balance-Momentum-Direct-Play-v0
+  reset:
+    pendulum_angle_rad: [-0.3, 0.3]
+    unstable_mode_rad_s: [-0.9, 0.9]      # rate + omega_g * tilt; the rate follows
+    rotor_angle_rad: [-2.0, 2.0]
+    rotor_rate_rad_s: [-6.0, 6.0]
+  termination:
+    max_rotor_angle_rad: 3.1416           # the swing-up task's bound, for the 11.78 and 40 rad/s^2 runs
+    max_rotor_angle_rad_a60_series: 12.566  # the a60/a60b/a60c/a60d drivers pass --max-rotor-rad 12.566, two turns; evaluation still terminates at pi, so their hold rates are scored against a tighter bound than they trained under
+  seeds: [1, 2, 3]
+  max_iterations: 300
+  evaluation:
+    seed1_kicks_rad_s: [0, 0.2, 0.4, 0.6, 0.8, 1.0]
+    other_seeds_kicks_rad_s: [0]
+    settle_s: 2.0                         # hold scored after this; the starts are up to 17 degrees out
+
+firmware_swingup:  # the board's own kick law in simulation (ADR-0004), scripts/scripted_swingup.py --pump firmware
+  law: kick at each encoder zero crossing, against the bob's travel, direction flipped at each detected peak
+  profile:                                # the L6474 position-move profile, from config/edukit.yaml
+    min_speed_rad_s: 1.571
+    ramp_rad_s2: 11.78
+    max_speed_rad_s: 3.927
+  kick_microsteps: [200, 200, 160]        # stage amplitudes; bands at 600 and 1000 encoder counts, gated after four kicks
+  initial_move_microsteps: 150
+  handover:
+    tilt_deg: 1.0                         # START_ANGLE; no rate condition, no mode bound
+  environment: position command mode, 4 kHz physics, 256 episodes, seed 1, 30 s; catch controllers integrate their own acceleration
+  reference:
+    logged_trace_kicks: 16
+    logged_trace_climb_s: 8.02
+  simulated_from_rest:
+    kicks: 20
+    climb_s: 11.57
+    handover_mode_rad_s: 1.07
+    lqr_at_11.78_holds: 0                 # of 256
+
+action_scale_hypothesis:  # ADR-0004: the balance path's physical bound is unmeasured
+  accel_bound_rad_s2: 40                  # inside what the stock PID commands on that path (peaks 43 to 58); training, evaluation and the board glue share it
+  task: Furuta-Balance-Momentum-Direct-v0
+  reset_mode_range_rad_s: [-3.06, 3.06]   # 0.9 scaled by 40 / 11.78
+  seeds: [1, 2, 3]
+  max_iterations: 300
+  evaluation_kicks_rad_s: [0, 1.0, 2.0, 3.0]
+  results:
+    training_reward_at_299: [6003, 7456, 5662]
+    seed1_hold_after_2s_settle: 0.707      # momentum starts, 256 episodes
+    seed1_recovery_rad_s: {1.0: 0.707, 2.0: 0.371, 3.0: 0.0}
+    one_rig_firmware_swingup: handover at 11.58 s, held to 24 s, peak command 40 rad/s^2
+    firmware_swingup_catch: {spread_starts: 256 of 256, rest_start: 256 of 256}   # 11.78 momentum policy on the same spread: 115 of 256
+  deployed_checkpoint: checkpoints/momentum_a40_seed1_model_299.pt   # what went on the board for the 2026-09-06 session, at RL_ACCEL_BOUND_RAD_S2 40. Superseded; board/policy_weights.h now carries momentum_a60d at 60
+
+hardware:  # 2026-09-06, mode b on the board; a hardware run is a sample, not a distribution
+  firmware: build/firmware/edukit-rl-balance.bin, autostart mode b, build id rl
+  policy: checkpoints/momentum_a40_seed1_model_299.pt, exported to board/policy_weights.h
+  accel_bound_rad_s2: 40                  # RL_ACCEL_BOUND_RAD_S2 in the firmware header
+  stops:
+    tilt_deg: 30                          # 20 in training; a catch past 20 can still come back
+    hold_s: 30
+    travel: none                          # the cable does not bind and a fast catch needs the arm
+  captures:
+    hardware_rl_balance.tsv: one catch, held 1.5 s until a travel stop taken from the simulation
+    hardware_rl_balance_series.tsv: five consecutive attempts, two held
+  results:
+    swing_up: 16 kicks, 8.03 s            # logged trace 16 and 8.01
+    arrivals_rad_s: [2.48, 2.27, 3.12, 1.77, 2.11]
+    held_s: [9.7, 0.3, 0.3, 0.4, 15.7]
+    best_hold: {tilt_rms_deg: 1.83, inside_3_deg: 0.97}
+    arrival_range_over_the_session_rad_s: [1.77, 3.91]   # against 3.43 the 40 rad/s^2 bound arrests. Read off the bench during the session; the attempt that gave 3.91 was not among the ones whose logs were retained, so the committed captures only evidence 1.37 to 3.12
+    arrival_range_committed_captures_rad_s: [1.37, 3.12]  # twelve arrivals across all five committed .tsv files, median 2.33
+  followups:                              # one change at a time, from the hardware's own evidence
+    a60:  {accel_bound: 60, travel_deadband_rad: 6.0, travel_weight: -0.05, rotor_rate_weight: 0.0, note: no travel charge; held 30 s and swept the arm 1.6 turns}
+    a60b: {accel_bound: 60, travel_deadband_rad: 0.5, travel_weight: -0.5, rotor_rate_weight: 0.0, note: the travel charge restored}
+    a60c: {accel_bound: 60, travel_deadband_rad: 0.5, travel_weight: -0.5, rotor_rate_weight: -0.01, note: and a charge on how fast the arm turns}
+    a60d: {accel_bound: 60, travel_deadband_rad: 0.5, travel_weight: -0.5, rotor_rate_weight: -0.01, action_rate_weight: -0.5, note: a60c with the action-rate charge raised fifty-fold; the one built into the current image}
+    ranking: momentum resets, 256 episodes, 2 s settle; hold 0.234 / 0.519 / 0.562, terminated 0.664 / 0.480 / 0.438, every failure on the evaluation's pi travel bound
+  cable:
+    binds_past_turns_from_centre: 1        # observed 2026-09-06; the tilt sweep turns a full revolution slowly and does not show it
+    firmware_stop_microsteps: 3200         # RL_STOP_TRAVEL_STEPS, protection for the cable
+  chatter:                                # measured on the board, first 2 s of each hold at 500 Hz
+    command_sign_changes_per_s: [30, 28, 22]
+    command_rms_rad_s2: [37.8, 38.7, 36.8]
+    command_mean_rad_s2: [0.3, 0.1, 0.9]
+    simulation_same_policy: {sign_changes_per_s: 54, rms_rad_s2: 9.3, tilt_rms_deg: 0.41}
+    action_rate_charge_at_that_size: 7.1e-06   # per step, against an alive term of 1.0
+    action_rate_weight_sweep: [-0.5, -3.0, -15.0]   # one seed each, through the firmware swing-up, 256 episodes; chatter_sweep.csv
+    sweep_catch_rate: [1.0, 0.113, 0.0]        # against 1.0 for the deployed -0.01
+    sweep_sign_changes_per_s: [32, 20, null]   # 54 at -0.01; the -15.0 policy falls rather than holds
+    sweep_command_rms_rad_s2: [2.83, 0.91, null]   # 9.27 at -0.01
+    sweep_tilt_rms_deg: [0.46, 0.61, null]     # 0.41 at -0.01
+    weight_ceiling: between 0.5 and 3, an order of magnitude below the per-step arithmetic, because the charge competes with the catch and not only with the alive term
+  settled_hold:                           # after the catch transient, from 5 s; the earlier numbers were taken over the first 2 s, which is the catch
+    window_start_s: 5.0
+    a60c_weight_0p01:
+      simulation: {sign_changes_per_s: 36.5, command_rms_rad_s2: 11.24, peak_rad_s2: 17.4, tilt_rms_deg: 0.36}
+      hardware:   {sign_changes_per_s: 12.5, command_rms_rad_s2: 43.80, peak_rad_s2: 60.0, rail_fraction: 0.30, tilt_rms_deg: 0.36}
+    a60d_weight_0p5:
+      simulation: {sign_changes_per_s: 11.3, command_rms_rad_s2: 1.85, peak_rad_s2: 7.1, tilt_rms_deg: 0.46}
+      hardware:   {sign_changes_per_s: 10.9, command_rms_rad_s2: 4.28, peak_rad_s2: 12.7, rail_fraction: 0.0, tilt_rms_deg: 1.58, standing_offset_deg: 1.6}
+    predicted_ratio: 6.1                   # simulation; the machine gave 10.2
+    machine_over_simulation: [3.9, 2.3]    # noisy policy, quiet policy: the amplification grows with the command, so it is not a constant gain
+  hardware_2026_09_07:                    # a60d, one 180 s capture, two attempts
+    arrivals_rad_s: [-1.95, -2.39]        # negative where the 09-06 session was positive; the kick law hands over from either side
+    held_s: [10.9, 30.0]                  # the first was pushed by hand at 9.9 s, recovered from that push, and went over on a second

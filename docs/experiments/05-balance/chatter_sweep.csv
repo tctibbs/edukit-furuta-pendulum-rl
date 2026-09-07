@@ -1,0 +1,5 @@
+run,action_rate_weight,accel_bound_rad_s2,pump,episodes,catch_rate,terminated_rate,sim_reversals_per_s,sim_command_rms_rad_s2,sim_peak_command_rad_s2,sim_tilt_rms_deg,hw_reversals_per_s,hw_command_rms_rad_s2,hw_peak_command_rad_s2,hw_rail_fraction,hw_tilt_rms_deg
+a60c-seed1,0.01,60.0,firmware,256,1.0,0.0,36.5,11.24,17.4,0.36,12.5,43.80,60.0,0.30,0.36
+a60d-seed1,0.5,60.0,firmware,256,1.0,0.0,11.3,1.85,7.1,0.46,10.9,4.28,12.7,0.0,1.58
+ar3p0,3.0,60.0,firmware,256,0.11328125,0.88671875,14.2,0.47,2.3,0.61,,,,,
+ar15p0,15.0,60.0,firmware,256,0.0,1.0,,,,,,,,,

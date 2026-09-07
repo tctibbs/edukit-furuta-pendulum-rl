@@ -47,6 +47,16 @@ docs-clean:
 hw-targets:
     uv run --with pyyaml python scripts/flash_firmware.py --list
 
+# Export a trained actor as the weights header and test vectors the board code is checked against. BOUND is --squash-actions or --no-squash-actions, whichever the training task set
+[group('board')]
+board-export CHECKPOINT BOUND:
+    uv run scripts/export_policy.py {{ CHECKPOINT }} {{ BOUND }}
+
+# Prove the board's policy and observer match the simulation, on the host compiler
+[group('board')]
+board-test:
+    uv run --with pytest --with torch --with pyyaml pytest tests/test_board.py -q
+
 # Flash a firmware target, skipping the write if the board already has it
 [group('hardware')]
 hw-flash TARGET="edukit" *FLAGS:
@@ -87,12 +97,17 @@ hw-probe-lean SECONDS="200":
 hw-probe-trace SECONDS="220":
     uv run --with pyserial python -u scripts/capture_trace.py --mode u --seconds {{ SECONDS }}
 
+# Run the RL balance test: the stock swing-up, then the exported policy holds. Drives the arm; see the firmware runbook
+[group('hardware')]
+hw-rl-balance SECONDS="110":
+    uv run --with pyserial python -u scripts/capture_trace.py --mode b --seconds {{ SECONDS }}
+
 # Fit a free-swing capture and redraw experiment 03's figures
 [group('hardware')]
 freeswing-fit TRACE="" FLAGS="":
     uv run docs/experiments/03-hardware-bringup/figures/analyze_freeswing.py {{ TRACE }} {{ FLAGS }}
 
-# Redraw one experiment's figures, or every experiment's
+# Redraw one experiment's figures, or every experiment's and the detailed design's
 [group('docs')]
 figures EXPERIMENT="":
     #!/usr/bin/env bash
@@ -104,6 +119,14 @@ figures EXPERIMENT="":
         echo "==> $script"
         uv run "$script"
     done
+    # The design and decision-record figures redraw with the whole set, not with one experiment.
+    if [ -z "{{ EXPERIMENT }}" ]; then
+        for script in docs/design/figures/*.py docs/adrs/figures/*.py; do
+            found=1
+            echo "==> $script"
+            uv run "$script"
+        done
+    fi
     if [ "$found" -eq 0 ]; then
         echo "No figure generators under docs/experiments/{{ EXPERIMENT }}*/figures/" >&2
         exit 1

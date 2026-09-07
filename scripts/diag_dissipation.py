@@ -86,8 +86,6 @@ def main() -> int:
     cfg.initial_pendulum_rate_range = [0.0, 0.0]
     cfg.initial_rotor_angle_range = [0.0, 0.0]
     cfg.initial_rotor_rate_range = [0.0, 0.0]
-    cfg.hanging_reset_fraction = 0.0
-    cfg.balance_reset_fraction = 0.0
 
     print(
         f"[cfg  ] plant={args.plant} physics={args.physics_hz:.0f} Hz "

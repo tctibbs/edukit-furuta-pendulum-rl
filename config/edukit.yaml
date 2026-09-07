@@ -22,7 +22,10 @@ actuator:
   full_steps_per_rev: 200            # From the manual, Sec. 4, Table 2, page 11
   microsteps_per_full_step: 16       # From the manual, Sec. 4, page 11
   max_step_rate_hz: 10000.0          # From the manual, Sec. 6, page 13, worded there as over 10,000 microsteps per second. Nominal, unmeasured on this unit
-  max_acceleration_rad_s2: 11.78     # MAX_ACCEL in the supplied firmware, read as microsteps per second squared
+  max_acceleration_rad_s2: 11.78     # MAX_ACCEL in the supplied firmware, read as microsteps per second squared. This is the L6474 speed-profile ramp the swing-up's position moves run on; the balance path is a separate path whose physical limit is unmeasured (ADR-0004)
+  profile_min_speed_rad_s: 1.571     # Firmware MIN_SPEED = 800 microsteps/s (edukit_system.h). The L6474 driver applies it as a step at the first pulse of every position move and stops from it. Whether the shaft follows the step is unmeasured
+  profile_max_speed_rad_s: 3.927     # Firmware MAX_SPEED = 2000 microsteps/s. Never reached by a kick under 560 microsteps; a 200-microstep kick peaks at 1348 microsteps/s = 2.647 rad/s
+  kick_microsteps: [200, 200, 160]   # STAGE_0_AMP, STAGE_1_AMP, STAGE_2_AMP in the build the reference trace ran (retuned; stock is 200, 130, 120), selected by the previous half-swing's peak against 600 and 1000 encoder counts. Every kick in the captures was 200. From the firmware source, 2026-09-04
 
 control:
   loop_rate_hz: 500.0                # From the manual, App. E, Sec. 19
