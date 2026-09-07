@@ -1,16 +1,21 @@
-"""Capture a free-swing trace from the Edukit's mode `w` logger.
+"""Capture a serial log from one of the board's logging modes.
 
-Mode `w` streams one line per control period, microseconds and encoder counts separated
-by a tab, with the rotor held. A free arm would make it a coupled two-degree-of-freedom
-system, whose frequency is not the suspended mode the manual publishes.
+Every logging mode streams tab-separated lines announced by a header naming its
+columns: `us counts` from the free-swing logger (`w`), `us counts phi` from the tilt
+sweep (`y`), and five columns from the identification and RL modes (`d`, `a`, `u`, `b`).
+This script answers the boot prompt with the mode letter and streams from the header
+until the duration runs out.
 
-Timestamps come from the board. Samples run about 6.5 kB/s against 23 kB/s of link. No
-sample is lost to bandwidth.
+Timestamps come from the board rather than from arrival, because the link's round trip
+is about 86 ms against a 2 ms sample period. Samples run about 6.5 kB/s against 23 kB/s
+of link, so none is lost to bandwidth.
 
-The capture runs for the duration once the sample header arrives. Take several releases
-within one capture; `furuta.freeswing` segments them.
+Mode `w` holds the rotor, which is what makes its frequency the suspended mode the
+manual publishes; a free arm would make it a coupled two-degree-of-freedom system. Take
+several releases within one `w` capture; `furuta.freeswing` segments them. The other
+modes drive the arm, so run them supervised.
 
-    uv run --with pyserial python scripts/capture_trace.py --seconds 180
+    uv run --with pyserial python scripts/capture_trace.py --mode b --seconds 110
 """
 
 from __future__ import annotations
@@ -36,10 +41,11 @@ DEFAULT_MODE = "w"
 # five.
 HEADER_MARKER = b"us\tcounts"
 
-# A sample line: integer timestamp, tab, signed integer count. Recognises a board
-# already logging after a previous capture left it in mode w. Without this the script
-# would wait for a boot prompt that is never coming.
-SAMPLE_LINE = re.compile(rb"^\d+\t-?\d+(\t-?\d+)?$")
+# A sample line: two to five tab-separated integers with an optional trailing state
+# letter. Recognises a board already logging after a previous capture left it in a
+# logging mode. Without this the script would wait for a boot prompt that is never
+# coming.
+SAMPLE_LINE = re.compile(rb"^-?\d+(\t-?\d+){1,4}(\t[A-Za-z])?$")
 MIN_SAMPLE_LINES = 5
 
 
@@ -61,7 +67,10 @@ def main() -> int:
     parser.add_argument(
         "--mode",
         default=DEFAULT_MODE,
-        help="boot mode to enter: w for free swing, y for the tilt sweep",
+        help=(
+            "boot mode to enter: w free swing, y tilt sweep, d ring-down, "
+            "a lean, u the stock swing-up, b the RL balance policy"
+        ),
     )
     parser.add_argument(
         "--out",

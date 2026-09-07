@@ -64,12 +64,6 @@ parser.add_argument(
     help="drive BOTH joints from the capture, simulating nothing. This is the measured"
     " trace made visible, for showing beside a replay; it is not a result.",
 )
-parser.add_argument(
-    "--stepped-rotor",
-    action="store_true",
-    help="hand the drive one target per control period instead of walking it across"
-    " the substeps (FurutaEnvCfg.rotor_target_interpolation)",
-)
 parser.add_argument("--out", required=True)
 parser.add_argument("--video", default=None, help="also record video to this folder")
 AppLauncher.add_app_launcher_args(parser)
@@ -109,7 +103,6 @@ def main() -> int:
     cfg.scene.num_envs = 1
     cfg.scene.env_spacing = 1.2
     cfg.rotor_command_mode = "position"
-    cfg.rotor_target_interpolation = not args.stepped_rotor
 
     if args.plant == "before":
         cfg.pivot_coulomb_deg_per_half_swing = 0.0
@@ -133,8 +126,6 @@ def main() -> int:
     cfg.initial_pendulum_rate_range = [0.0, 0.0]
     cfg.initial_rotor_angle_range = [0.0, 0.0]
     cfg.initial_rotor_rate_range = [0.0, 0.0]
-    cfg.hanging_reset_fraction = 0.0
-    cfg.balance_reset_fraction = 0.0
 
     if args.video:
         cfg.sim.render_interval = 1

@@ -56,6 +56,12 @@ class FurutaParameters:
     coulomb_loss_deg_per_half_swing: float = 0.0
     friction_crossover_deg: float = 0.0
     quadratic_drag_coeff: float = 0.0
+    # The L6474 position-move profile the swing-up's kicks run on, and the balance
+    # path's own clamp. Provenance in config/edukit.yaml; defaults keep older
+    # configuration files loading.
+    profile_min_speed_rad_s: float = 1.571
+    profile_max_speed_rad_s: float = 3.927
+    kick_microsteps: tuple[int, int, int] = (200, 200, 160)
 
     @classmethod
     def from_yaml(cls, path: str | Path | None = None) -> FurutaParameters:
@@ -177,7 +183,7 @@ class FurutaParameters:
         return 1.0 / self.loop_rate_hz
 
     @property
-    def upright_deadband_rad(self) -> float:
+    def stiction_hold_angle_rad(self) -> float:
         """Half the Coulomb loss in radians, the angle stiction can hold against.
 
         `c` is `radians(delta) * omega_g^2 / 2` for a loss of `delta` per half swing, so

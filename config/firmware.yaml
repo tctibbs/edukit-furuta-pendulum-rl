@@ -66,3 +66,43 @@ targets:
     description: Autostart 'u', boots probe-trace (the stock swing-up and balance, logged, ten times). Drives the motor; run supervised
     build_id: ident
     banner: System Starting Prepare to Enter Mode Selection
+
+  # The hardware test for [Milestone 05](../docs/milestones/M5-balance.md): the stock
+  # swing-up hands over to the exported RL policy (board/, see
+  # docs/runbooks/model-conversion.md) instead of the PID loops. Drives the motor and
+  # holds for up to 30 s; run supervised with a hand on the supply.
+  rl-balance:
+    path: build/firmware/edukit-rl-balance.bin
+    description: Autostart 'b', the stock swing-up then the RL balance policy in place of the PID. Drives the motor; run supervised
+    build_id: rl
+    banner: System Starting Prepare to Enter Mode Selection
+
+  # The policies that have run on the machine, kept so any can be reflashed without a
+  # rebuild. All are mode b; they differ in the checkpoint compiled into them and in
+  # RL_ACCEL_BOUND_RAD_S2, which must match the bound the checkpoint trained with.
+  # Rebuild one from its checkpoint under docs/experiments/05-balance/checkpoints/ with
+  # `just board-export <checkpoint> --no-squash-actions` and the bound set in the
+  # firmware header.
+  rl-balance-a60:
+    path: build/firmware/edukit-rl-balance-a60.bin
+    description: Autostart 'b' at 60 rad/s^2, momentum_a60_seed1. Holds 30 s but sweeps the arm through turns. Drives the motor; run supervised
+    build_id: rl
+    banner: System Starting Prepare to Enter Mode Selection
+
+  rl-balance-a60b:
+    path: build/firmware/edukit-rl-balance-a60b.bin
+    description: Autostart 'b' at 60 rad/s^2, momentum_a60b_seed1, trained with the charge on arm travel restored. Drives the motor; run supervised
+    build_id: rl
+    banner: System Starting Prepare to Enter Mode Selection
+
+  rl-balance-a60c:
+    path: build/firmware/edukit-rl-balance-a60c.bin
+    description: Autostart 'b' at 60 rad/s^2, momentum_a60c_seed1, charged for both the arm's position and its speed. Drives the motor; run supervised
+    build_id: rl
+    banner: System Starting Prepare to Enter Mode Selection
+
+  rl-balance-a60d:
+    path: build/firmware/edukit-rl-balance-a60d.bin
+    description: Autostart 'b' at 60 rad/s^2, momentum_a60d_seed1, the same charges with the action-rate weight raised from 0.01 to 0.5. Drives the motor; run supervised
+    build_id: rl
+    banner: System Starting Prepare to Enter Mode Selection

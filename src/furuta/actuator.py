@@ -48,14 +48,25 @@ class AccelerationCommandActuator:
         """One microstep in radians."""
         return self._p.rad_per_microstep
 
-    def reset(self, env_ids: torch.Tensor | None = None) -> None:
-        """Zero the rotor state, for all environments or a subset."""
+    def reset(
+        self,
+        env_ids: torch.Tensor | None = None,
+        position: torch.Tensor | float = 0.0,
+        velocity: torch.Tensor | float = 0.0,
+    ) -> None:
+        """Set the rotor state, for all environments or a subset. Zero by default.
+
+        A caller resetting the rotor to a non-zero angle has to set this state and the
+        joint angle together. The rotor follows a stiff position target, so a joint
+        moved without the actuator following it is a step error the drive closes at full
+        authority on the next substep.
+        """
         if env_ids is None:
-            self.position[:] = 0.0
-            self.velocity[:] = 0.0
+            self.position[:] = position
+            self.velocity[:] = velocity
         else:
-            self.position[env_ids] = 0.0
-            self.velocity[env_ids] = 0.0
+            self.position[env_ids] = position
+            self.velocity[env_ids] = velocity
 
     def step(self, action: torch.Tensor, dt: float) -> torch.Tensor:
         """Advance the rotor one control period, returning the quantized position.

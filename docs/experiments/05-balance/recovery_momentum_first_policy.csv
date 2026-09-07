@@ -1,0 +1,2 @@
+kick_rad_s,episodes,hold_rate,recovery_rate,terminated_rate,peak_excursion_deg,max_rotor_travel_rad
+0.0,256,0.35546875,nan,0.640625,15.005485059316548,3.1424777507781982
