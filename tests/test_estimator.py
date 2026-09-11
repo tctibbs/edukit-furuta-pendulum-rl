@@ -123,3 +123,27 @@ def test_window_below_two_is_rejected():
     """A single sample cannot carry a slope, so the degenerate case is an error."""
     with pytest.raises(ValueError, match="at least 2 samples"):
         slope_coefficients(1, DT)
+
+
+def test_reset_with_a_rate_seeds_a_ramp_so_the_first_estimate_is_that_rate():
+    """A moving reset must read its own rate at once, not a rate climbing from zero."""
+    estimator = VelocitySlopeEstimator(16, DT, 1, "cpu")
+    estimator.reset(None, torch.tensor([1.0]), torch.tensor([4.0]))
+    # The next sample continues the motion; the window is then a clean ramp.
+    first = estimator.update(torch.tensor([1.0 + 4.0 * DT])).item()
+    assert abs(first - 4.0) < 1e-4
+    # Flat seeding, the default, still reads zero for a body at rest.
+    estimator.reset(None, torch.tensor([1.0]))
+    assert abs(estimator.update(torch.tensor([1.0])).item()) < 1e-6
+
+
+def test_reset_with_a_rate_is_per_environment():
+    """Seeding one environment's ramp must not touch another's window."""
+    estimator = VelocitySlopeEstimator(8, DT, 2, "cpu")
+    estimator.reset(None, torch.zeros(2))
+    for k in range(1, 9):
+        estimator.update(torch.tensor([2.0 * k * DT, 0.0]))
+    estimator.reset(torch.tensor([1]), torch.tensor([0.5]), torch.tensor([-3.0]))
+    rates = estimator.update(torch.tensor([2.0 * 9 * DT, 0.5 - 3.0 * DT]))
+    assert abs(rates[0].item() - 2.0) < 1e-4
+    assert abs(rates[1].item() + 3.0) < 1e-4

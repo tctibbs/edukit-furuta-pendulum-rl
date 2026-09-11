@@ -106,3 +106,12 @@ targets:
     description: Autostart 'b' at 60 rad/s^2, momentum_a60d_seed1, the same charges with the action-rate weight raised from 0.01 to 0.5. Drives the motor; run supervised
     build_id: rl
     banner: System Starting Prepare to Enter Mode Selection
+
+  # The swing-up test, mode r. Rebuild it from a checkpoint under
+  # docs/experiments/06-swing-up/checkpoints/ with `just board-export <checkpoint>
+  # --squash-actions` and RL_ACCEL_BOUND_RAD_S2 at 60 in the firmware header.
+  rl-swingup:
+    path: build/firmware/edukit-rl-swingup.bin
+    description: Autostart 'r' at 60 rad/s^2, swingup_r7_smooth_seed2, the RL swing-up policy from rest with the arm returned to its start after each attempt. Drives the arm fast; run supervised
+    build_id: rl
+    banner: System Starting Prepare to Enter Mode Selection

@@ -1,0 +1,26 @@
+# ADR-0006: walk the rotor's drive target across the control period
+
+**Context:** the actuator model integrates the commanded acceleration once per 2 ms control period into one microstep-quantized position target. That same target was then handed to every physics substep in the period. This record calls that the stepped target, and a simulation driven by it the stepped plant. Under stiff drive gains the simulated arm jumped to it within the first substep or two and sat still for the rest.
+
+The real stepper does not move that way. It spreads the displacement across its microsteps, roughly eleven per 2 ms period at the 10.8 rad/s the first bench swing-up reached. Two-link dynamics couple the pendulum to the square of arm speed through $\kappa \dot{\phi}^2 \sin\theta \cos\theta$, where $\theta$ is the rod's tilt from upright and $\kappa = 0.974$ is the rod's inertia about the pivot over the whole pivot inertia. A jump that covers the displacement in a fraction $f$ of the period drives the rod with a mean-squared arm speed $1/f$ times too high.
+
+[Experiment 04](../experiments/04-model-reconciliation/writeup.md) replayed the supplied firmware's swing-up, which moves the arm at up to $2.65\text{ rad/s}$. Its trace logged the arm only at the ends of each kick and could not show excess energy per stroke. The first learned swing-up on the bench in [Experiment 06](../experiments/06-swing-up/writeup.md) showed it. Driving the 4 kHz simulation with the arm motion the board logged, which peaked at $10.8\text{ rad/s}$, put the rod through its first bottom pass at $13.0\text{ rad/s}$ after the first stroke, against $10.3\text{ rad/s}$ on hardware. Repeating that replay at 2 and 8 kHz put the first bottom pass at $6.4$ and $14.0\text{ rad/s}$. At 16 kHz a single stroke brought the rod within $30^\circ$ of upright by 0.6 s. The jump explains the overshoot at 4 kHz and above. Why the stepped plant falls short of the bench at 2 kHz is not established.
+
+The arm has no encoder, and the board logs the arm angle it dead-reckons from the steps it issued. A lost step would leave the real arm short of the logged motion. The planar model in [`src/furuta/planar.py`](../../src/furuta/planar.py), which integrates a smooth arm velocity, reproduced the same trace to $6.3^\circ$ RMS. Scaling the arm motion down by 10 percent, as a step loss would, raised the error to $19.7^\circ$, and scaling $\kappa$ by 0.75 raised it to $18.5^\circ$. Any step loss is at most a few percent, the coupling term holds, and the error is in the articulation drive.
+
+## Options
+
+| Option | Assessment |
+|---|---|
+| Walk the target across the substeps | Moves the target linearly from the previous period's target to the current one across the substeps, and feeds the commanded velocity forward. Removes the jump without giving up the position reference |
+| Raise the physics rate and keep the stepped target | Makes it worse. A shorter substep sharpens the velocity spike and injects more phantom energy |
+| Drive by velocity only | Removes the jump and lets the position drift away from the dead reckoning the firmware keeps and the policy observes |
+| Model the stepper dropping steps as its torque falls off with speed | Ruled out by the planar fit. Any step loss is at most a few percent |
+
+**Decision:** [`FurutaEnvCfg.rotor_target_interpolation`](../../src/furuta/env.py) is on by default. Substep $k$ of $n$ receives the position $k/n$ of the way from the previous period's target to the current one, and the actuator feeds the commanded velocity to the joint drive. With velocity fed forward, the drive does not lag a moving target, and its damping acts on tracking error rather than on absolute velocity.
+
+Replayed against the same bench capture, the walked target tracks the measured tilt to a mean difference of $4.3^\circ$ over the first 1.5 s, against $12.6^\circ$ for the stepped target at 4 kHz. Its bottom passes are $9.6$ and $13.4\text{ rad/s}$, against $10.3$ and $13.3$ on hardware, and it gives the same answer at 2, 4, and 16 kHz. Scripts keep `--stepped-rotor` for re-scoring earlier runs on the plant they trained on, except `scripts/evaluate.py`, [Experiment 05](../experiments/05-balance/writeup.md)'s balance evaluator. The commands in [Experiment 02](../experiments/02-furuta-environment/writeup.md), [Experiment 04](../experiments/04-model-reconciliation/writeup.md), and [Experiment 05](../experiments/05-balance/writeup.md) do not pass it, and now run on the walked target.
+
+**Consequences:** the training plant no longer credits arm strokes with pendulum energy the machine does not deliver. The first bench policy, trained on the stepped plant, got less energy per stroke on the machine than it trained on. Its arm was still moving outward at 4.2 rad/s when the rod reached upright, and it could not catch from that state. Every [Experiment 06](../experiments/06-swing-up/writeup.md) gate before the walked-target retraining was measured on the stepped plant, and that experiment's [`config.yaml`](../experiments/06-swing-up/config.yaml) marks the switch.
+
+Every [Experiment 06](../experiments/06-swing-up/writeup.md) policy trained and was scored at 4 kHz, and swing-up stays there. Whether 1 kHz would serve on the walked-target plant is untested.

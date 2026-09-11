@@ -76,23 +76,32 @@ class VelocitySlopeEstimator:
         return (self.window - 1) / 2.0 * self.dt
 
     def reset(
-        self, env_ids: Sequence[int] | torch.Tensor | None, angle: torch.Tensor
+        self,
+        env_ids: Sequence[int] | torch.Tensor | None,
+        angle: torch.Tensor,
+        rate: torch.Tensor | float = 0.0,
     ) -> None:
-        """Seed the window flat at `angle`, so the first estimate is zero rate.
+        """Seed the filter window with linear historical states for `angle` and `rate`.
 
-        Seeding from anything other than the value the next update will difference
-        against injects a rate that was never there. Half a quantum over one control
-        period is 0.65 rad/s of pendulum rate, most of the recoverable window, and it
-        lands in the first observation of every episode.
+        Constructs a linear ramp ending at `angle` with slope `rate` so the initial
+        filter output matches `rate` without 32 ms ramp-up delay. `angle` should be
+        pre-quantized to match the next differenced encoder reading.
         """
+        if not isinstance(rate, torch.Tensor):
+            rate = torch.full_like(angle, float(rate))
+        # Sample k of the window is (window - 1 - k) periods before `angle`.
+        lags = torch.arange(
+            self.window - 1, -1, -1, device=angle.device, dtype=angle.dtype
+        )
+        history = angle.unsqueeze(-1) - rate.unsqueeze(-1) * lags * self.dt
         if env_ids is None:
             self._unwrapped = angle.clone()
             self._previous = angle.clone()
-            self._buffer = angle.unsqueeze(-1).expand_as(self._buffer).clone()
+            self._buffer = history.clone()
         else:
             self._unwrapped[env_ids] = angle
             self._previous[env_ids] = angle
-            self._buffer[env_ids] = angle.unsqueeze(-1)
+            self._buffer[env_ids] = history
 
     def update(self, angle: torch.Tensor) -> torch.Tensor:
         """Push one sample and return the estimated rate."""

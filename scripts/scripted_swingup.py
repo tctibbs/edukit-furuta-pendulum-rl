@@ -1,6 +1,6 @@
-"""Scripted swing-up baseline: an energy pump behind a travel governor, then LQR.
+"""Scripted swing-up baseline: a bang-bang pump behind a travel governor, then LQR.
 
-The baseline is energy shaping into LQR gains near vertical. It is also the check on
+The baseline is a bang-bang pump into LQR gains near vertical. It is also the check on
 the reduced pendulum model in `src/furuta/planar.py`, which says a governed pump swings
 up inside the travel bound. This script runs the same controller against the
 full asset through the same observations a policy gets, quantized angles and
@@ -27,16 +27,16 @@ capacity is smaller than the theoretical bound. Each episode's state at handover
 outcome go to `--episodes-out`, which is what says whether a policy trained from near
 rest takes a swing-up's arrival.
 
-`--pump firmware` replaces the textbook pump with the board's own swing-up (ADR-0004,
-`furuta.kick`): the initial 150-microstep move, the zero-crossing detector over integer
-encoder counts, blocking position moves on the L6474 profile with the loop frozen while
-one is in flight, and the handover at 1 degree of upright with no rate condition. The
-environment runs in position mode so the rotor follows the driver's profile, and after
-the handover the LQR or the policy's acceleration is integrated by the same
-`AccelerationCommandActuator` the environment uses in acceleration mode, seeded at rest
-at the handover angle as the board's own integrator is. `--kicks-out` records every kick
-for the logged-trace comparison. Starts still come from the task's reset spread, where
-the board starts from a settled pendulum. The textbook path is unchanged.
+`--pump firmware` replaces the bang-bang pump (`--pump textbook`) with the board's own
+swing-up (ADR-0004, `furuta.kick`): the initial 150-microstep move, the zero-crossing
+detector over integer encoder counts, blocking position moves on the L6474 profile with
+the loop frozen while one is in flight, and the handover at 1 degree of upright with no
+rate condition. The environment runs in position mode so the rotor follows the driver's
+profile, and after the handover the LQR or the policy's acceleration is integrated by
+the same `AccelerationCommandActuator` the environment uses in acceleration mode, seeded
+at rest at the handover angle as the board's own integrator is. `--kicks-out` records
+every kick for the logged-trace comparison. Starts still come from the task's reset
+spread, where the board starts from a settled pendulum. The textbook path is unchanged.
 
 Run on the training host:
 
@@ -56,6 +56,8 @@ from __future__ import annotations
 import argparse
 import csv
 import math
+import sys
+import traceback
 from pathlib import Path
 
 from isaaclab.app import AppLauncher
@@ -63,6 +65,12 @@ from isaaclab.app import AppLauncher
 from furuta.shutdown import close_and_exit
 
 parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument(
+    "--stepped-rotor",
+    action="store_true",
+    help="hand the drive one target per control period, the plant every run before"
+    " ADR-0006 trained on, instead of walking it across the substeps",
+)
 parser.add_argument("--task", default="Furuta-SwingUp-Direct-Play-v0")
 parser.add_argument("--num-envs", type=int, default=256)
 parser.add_argument("--seed", type=int, default=1)
@@ -74,11 +82,39 @@ parser.add_argument(
 parser.add_argument("--out", default=None, help="csv path for the summary row")
 parser.add_argument(
     "--pump",
-    choices=["textbook", "firmware"],
+    choices=["textbook", "energy", "kick", "firmware"],
     default="textbook",
-    help="textbook is the governed energy pump above; firmware is the board's own "
-    "swing-up, kicks on the L6474 position-move profile timed by its zero-crossing "
-    "detector over encoder counts, with the environment in position mode",
+    help="textbook is the governed bang-bang pump above; energy is the same law with "
+    "its magnitude scaled by how far the energy still has to go (Astrom and Furuta), "
+    "so the push tapers as the separatrix nears and an arrival lands inside a wide "
+    "handover set that bang-bang overshoots; kick is the firmware's idea on the "
+    "acceleration path, one rest-to-rest pulse of --kick-rad against the swing at "
+    "each pass through the bottom and nothing between, so the arm never runs fast; "
+    "firmware is the board's own swing-up, kicks on the L6474 position-move profile "
+    "timed by its zero-crossing detector over encoder counts, with the environment in "
+    "position mode",
+)
+parser.add_argument(
+    "--pump-gain",
+    type=float,
+    default=4.0,
+    help="under --pump energy: the push is full until the energy fraction passes "
+    "1 - 1/gain, then tapers linearly to zero at the separatrix",
+)
+parser.add_argument(
+    "--catch-squash",
+    action="store_true",
+    help="pass the catch policy's action through tanh instead of the clamp it trained "
+    "under. The swing-up task squashes its actions, so a balance checkpoint "
+    "warm-started into it is driven this way; this replays the checkpoint under the "
+    "same bound",
+)
+parser.add_argument(
+    "--kick-rad",
+    type=float,
+    default=0.393,
+    help="under --pump kick: the arc of each rest-to-rest pulse, rad. The default is "
+    "the firmware's 200-microstep kick",
 )
 parser.add_argument(
     "--pump-sign",
@@ -257,6 +293,7 @@ def main() -> int:
 
     spec = gym.spec(args.task)
     cfg = spec.kwargs["env_cfg_entry_point"]()
+    cfg.rotor_target_interpolation = not args.stepped_rotor
     cfg.scene.num_envs = args.num_envs
     cfg.seed = args.seed
     # The controller works in rad/s^2 and the actuator clamps to [-1, 1] * a_max, so
@@ -369,6 +406,15 @@ def main() -> int:
     tol = math.radians(args.hold_deg)
 
     trace_rows = []
+    # Kick pump state. A pulse is `kick_half` control steps at +a then as many at -a,
+    # the rest-to-rest move that covers --kick-rad; the arc it covers is quantised to
+    # whole steps and reported.
+    kick_half = max(1, round(math.sqrt(args.kick_rad / a_max) / inner.step_dt))
+    kick_arc = a_max * (kick_half * inner.step_dt) ** 2
+    kick_start = torch.full((n,), -(10**9), dtype=torch.long, device=device)
+    kick_dir = torch.zeros(n, device=device)
+    kicks = torch.zeros(n, dtype=torch.long, device=device)
+    prev_from_hanging = None
     capturing = torch.zeros(n, dtype=torch.bool, device=device)
     terminated = torch.zeros(n, dtype=torch.bool, device=device)
     arrived = torch.full((n,), -1, dtype=torch.long, device=device)
@@ -418,8 +464,45 @@ def main() -> int:
             # The board tests handover at each poll, before any kick, with no rate
             # condition (main.c:1786), and a loop inside a move does not poll.
             capturing |= law.awake(t_now) & (tilt.abs() < args.catch_tilt)
+        elif args.pump == "kick":
+            # Through the bottom, not mid-pulse and not handed over: one pulse against
+            # the swing, the sign the energy law takes there. Consecutive passes have
+            # opposite pendulum rates, so the pulses alternate and the arm returns.
+            in_pulse = step - kick_start < 2 * kick_half
+            if prev_from_hanging is None:
+                crossing = torch.zeros_like(in_pulse)
+            else:
+                crossing = (
+                    (prev_from_hanging * from_hanging < 0) & ~in_pulse & ~capturing
+                )
+            prev_from_hanging = from_hanging
+            new_dir = -torch.sign(rate)
+            new_dir = torch.where(new_dir == 0, torch.ones_like(new_dir), new_dir)
+            kick_dir = torch.where(crossing, new_dir, kick_dir)
+            kick_start = torch.where(
+                crossing, torch.full_like(kick_start, step), kick_start
+            )
+            kicks += crossing.long()
+            elapsed = step - kick_start
+            u = torch.where(
+                elapsed < kick_half,
+                kick_dir * a_max,
+                torch.where(
+                    elapsed < 2 * kick_half, -kick_dir * a_max, torch.zeros_like(rate)
+                ),
+            )
+            capturing |= (tilt.abs() < args.catch_tilt) & (
+                (rate + 7.351 * tilt).abs() < args.catch_mode
+            )
         else:
             u = torch.where(rate * cos_t >= 0, a_max, -a_max) * args.pump_sign
+            if args.pump == "energy":
+                # Energy from upright per unit inertia, as the reward writes it, as a
+                # fraction of the separatrix: 0 hanging at rest, 1 arriving with none.
+                fraction = 1.0 + (0.5 * rate.pow(2) + omega_g_sq * (cos_t - 1.0)) / (
+                    2.0 * omega_g_sq
+                )
+                u = u * (args.pump_gain * (1.0 - fraction)).clamp(0.0, 1.0)
             stop = rotor_rate.pow(2) / (2.0 * a_max)
             u = torch.where(
                 (rotor_rate > 0) & (rotor + stop >= 0.95 * args.allowance), -a_max, u
@@ -439,7 +522,9 @@ def main() -> int:
             catch = (-(state * gains_t).sum(dim=-1)).clamp(-a_catch, a_catch)
         else:
             with torch.inference_mode():
-                catch = policy(obs_dict).squeeze(-1).clamp(-1.0, 1.0) * a_catch
+                raw = policy(obs_dict).squeeze(-1)
+                bounded = torch.tanh(raw) if args.catch_squash else raw.clamp(-1.0, 1.0)
+                catch = bounded * a_catch
         u = torch.where(capturing, catch, u)
 
         if firmware:
@@ -507,6 +592,7 @@ def main() -> int:
         "policy_bound_rad_s2": a_catch,
         "catch_mode_rad_s": args.catch_mode,
         "catch_tilt_rad": args.catch_tilt,
+        "catch_squash": int(args.catch_squash),
         "seed": args.seed,
         "episodes": n,
         "allowance_rad": args.allowance,
@@ -535,6 +621,15 @@ def main() -> int:
             "pump": "firmware",
             **row,
             "kicks_median": median(law.kicks[handed].float()),
+        }
+    elif args.pump == "energy":
+        row = {"pump": "energy", "pump_gain": args.pump_gain, **row}
+    elif args.pump == "kick":
+        row = {
+            "pump": "kick",
+            "kick_rad": round(kick_arc, 4),
+            **row,
+            "kicks_median": median(kicks[handed].float()),
         }
     print("[gate ] " + "  ".join(f"{k}={v}" for k, v in row.items()), flush=True)
     if args.episodes_out:
@@ -634,5 +729,13 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    main()
-    close_and_exit(simulation_app)
+    # An exception here has to become a non-zero exit. Left to propagate, Kit's own
+    # teardown returns 0 after the traceback, and a driver that trusts the code then
+    # runs every later step as though this one had succeeded.
+    try:
+        code = main() or 0
+    except Exception:
+        traceback.print_exc()
+        sys.stdout.flush()
+        code = 1
+    close_and_exit(simulation_app, code)

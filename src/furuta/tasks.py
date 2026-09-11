@@ -21,6 +21,7 @@ from furuta.agents import (
     FurutaBalancePlayPPORunnerCfg,
     FurutaBalancePPORunnerCfg,
     FurutaSwingUpPlayPPORunnerCfg,
+    FurutaSwingUpPPORunnerCfg,
 )
 from furuta.env import FurutaEnv, FurutaEnvCfg
 
@@ -117,14 +118,54 @@ class FurutaSwingUpEnvCfg(FurutaEnvCfg):
         # carrying on from a fast swing is not.
         self.initial_pendulum_rate_range = [-10.0, 10.0]
 
+        # `cos(tilt)` is proportional to the height the rotor pumps the pendulum
+        # through, and it spans its full range over the half turn this task covers.
+        # Inside balance's 20 degree envelope it is nearly flat, and balance keeps the
+        # quadratic.
+        self.upright_reward = "cosine"
+
         # No fall-over termination. Hanging is where every episode starts, so the
         # Milestone 05 cut at 20 degrees would end the episode on the first step.
         # `pi` is unreachable by a wrapped angle, which disables the check.
         self.max_pendulum_angle_rad = math.pi
 
-        # Pumping needs the rotor to swing back and forth, and the requirement is only
-        # that total travel stay bounded by the pendulum encoder's cable. A full turn is
-        # the bound; balance used half of it because balance never needed the room.
+        # Separatrix energy shaping pays 0 at hanging rest and 2.0 per step on the
+        # separatrix. It is the dominant gradient near hanging rest.
+        self.rew_scale_energy = 2.0
+
+        # Resets initialized near hanging rest to evaluate the target swing-up task.
+        self.hanging_reset_fraction = 0.4
+
+        # Resets drawn near upright to preserve and train recovery/hold skills.
+        self.balance_reset_fraction = 0.25
+
+        # Sample near-vertical resets with high rates and arm displacement.
+        self.balance_reset_in_recoverable_set = True
+        self.balance_reset_angle_range = [-0.3, 0.3]
+        self.balance_reset_mode_range = [-0.9, 0.9]
+        self.balance_reset_rotor_angle_range = [-2.0, 2.0]
+        self.balance_reset_rotor_rate_range = [-6.0, 6.0]
+
+        # Bound commands at limits rather than quadratically penalizing effort.
+        self.squash_actions = True
+
+        # Penalize rotor displacement outside deadband, 0.5 per radian per step, to
+        # prevent limit drift.
+        self.rew_scale_rotor_travel = -0.5
+
+        # The capture well pays up to 2.0 per step at vertical and makes upright
+        # balance more profitable than swinging.
+        self.rew_scale_capture = 2.0
+
+        # Restrict the rate penalty to the capture window so pumping is not charged.
+        self.pendulum_rate_gate_rad = 0.35
+
+        # Penalize angular velocity near upright, 0.25 per (rad/s)^2 per step, to
+        # prevent over-the-top rotation.
+        self.rew_scale_pendulum_rate = -0.25
+
+        # Match the evaluation gate's travel limit, pi either side
+        # of center.
         self.max_rotor_angle_rad = math.pi
 
 
@@ -134,15 +175,14 @@ class FurutaSwingUpPlayEnvCfg(FurutaSwingUpEnvCfg):
     def __post_init__(self) -> None:
         """Reset hanging, which is the task, and narrow the scene."""
         super().__post_init__()
-        # Training resets across the whole circle so the policy meets the top. The
-        # gate is swing-up, so scoring has to start at the bottom, and a policy scored
-        # on the training spread would be credited for episodes handed to it upright.
+        # Reset near hanging rest to evaluate swing-up from near-zero kinetic energy.
         self.initial_pendulum_angle_range = [-0.4, 0.4]
-        # Near rest, matching the hanging share's spread. The training rate spread of
-        # plus or minus 10 rad/s exists to cover energies, and inherited here it hands
-        # a scored episode up to 46 percent of the energy to vertical before the
-        # policy has acted. At 1 rad/s the handout is 0.5 percent.
         self.initial_pendulum_rate_range = [-1.0, 1.0]
+        # Clear both reset shares. They are training aids, and the near-vertical
+        # share left inherited hands a quarter of the scored episodes a pendulum that
+        # is already up.
+        self.hanging_reset_fraction = 0.0
+        self.balance_reset_fraction = 0.0
         self.scene.num_envs = 256
 
 
@@ -186,6 +226,16 @@ gym.register(
     },
 )
 
+
+gym.register(
+    id="Furuta-SwingUp-Direct-v0",
+    entry_point="furuta.env:FurutaEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": FurutaSwingUpEnvCfg,
+        "rsl_rl_cfg_entry_point": FurutaSwingUpPPORunnerCfg,
+    },
+)
 
 gym.register(
     id="Furuta-SwingUp-Direct-Play-v0",

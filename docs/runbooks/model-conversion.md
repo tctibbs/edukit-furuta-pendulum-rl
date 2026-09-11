@@ -26,9 +26,9 @@ wrote board/policy_vectors.json (64 vectors)
 action range over the vectors: -5.690 to 7.670
 ```
 
-Use `--no-squash-actions` for the Balance tasks, which is every task here. The wrong flag exports without complaint and skews commands by up to 24 percent of the bound at a raw action of magnitude 1. The export records which flag it used, and the verification step below reads it back. Both files are overwritten on every export.
+Use `--no-squash-actions` for the Balance tasks and `--squash-actions` for `Furuta-SwingUp-Direct-v0`, which trains with `tanh` on the command. The wrong flag exports without complaint and skews commands by up to 24 percent of the bound at a raw action of magnitude 1. The export records which flag it used, and the verification step below reads it back. Both files are overwritten on every export.
 
-The printed action range is a sanity check. Raw output above 1 is expected, since the bound clamps it.
+The printed action range is a sanity check. Raw output above 1 is expected, since the bound clamps it, or `tanh` maps it inside the bound for a `--squash-actions` export.
 
 ## Verifying the C code matches the simulation
 

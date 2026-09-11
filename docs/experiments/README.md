@@ -9,3 +9,4 @@ The experiments form a series, one per folder, in order. Each folder holds its w
 | 03 | [Hardware bring-up and system identification](03-hardware-bringup/writeup.md) |
 | 04 | [Refitting the simulation](04-model-reconciliation/writeup.md) |
 | 05 | [Balance](05-balance/writeup.md) |
+| 06 | [Swing-up](06-swing-up/writeup.md) |

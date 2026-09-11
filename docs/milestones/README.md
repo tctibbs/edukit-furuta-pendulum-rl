@@ -10,5 +10,5 @@ Take one instrumented physical system from documented design inputs to a GPU-tra
 | [Milestone 03](M3-hardware-bringup.md) | Hardware bring-up and system identification | Done |
 | [Milestone 04](M4-model-reconciliation.md) | Refit the simulation | Done |
 | [Milestone 05](M5-balance.md) | Balance | Done |
-| [Milestone 06](M6-swing-up.md) | Swing-up | Next |
+| [Milestone 06](M6-swing-up.md) | Swing-up | Done |
 | [Milestone 07](M7-wrap-up.md) | Wrap-up |  |
