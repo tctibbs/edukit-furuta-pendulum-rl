@@ -24,6 +24,12 @@ from isaaclab.app import AppLauncher
 from furuta.shutdown import close_and_exit
 
 parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument(
+    "--stepped-rotor",
+    action="store_true",
+    help="hand the drive one target per control period, the plant every run before"
+    " ADR-0006 trained on, instead of walking it across the substeps",
+)
 parser.add_argument("--task", default="Furuta-Balance-Direct-v0")
 parser.add_argument("--checkpoint", default=None, help="omit for an untrained policy")
 parser.add_argument("--num-envs", type=int, default=9)
@@ -57,6 +63,15 @@ parser.add_argument(
     default=None,
     help="override the physics rate; the control rate stays at 500 Hz",
 )
+parser.add_argument(
+    "--accel-bound",
+    type=float,
+    default=None,
+    help="rotor acceleration bound and action scale, rad/s^2, in place of the "
+    "configured 11.78. Must match the bound the checkpoint trained with: the "
+    "checkpoint does not record it, and a wrong value rescales every command "
+    "without failing. See ADR-0004",
+)
 AppLauncher.add_app_launcher_args(parser)
 args = parser.parse_args()
 
@@ -77,6 +92,7 @@ def main() -> int:
 
     spec = gym.spec(args.task)
     cfg = spec.kwargs["env_cfg_entry_point"]()
+    cfg.rotor_target_interpolation = not args.stepped_rotor
     agent_cfg = spec.kwargs["rsl_rl_cfg_entry_point"]()
 
     cfg.scene.num_envs = args.num_envs
@@ -120,6 +136,9 @@ def main() -> int:
     elif args.start == "vertical":
         cfg.hanging_reset_fraction = 0.0
         cfg.balance_reset_fraction = 1.0
+    if args.accel_bound is not None:
+        cfg.max_acceleration_rad_s2 = args.accel_bound
+        print(f"[cfg  ] max_acceleration_rad_s2={args.accel_bound}", flush=True)
 
     env = gym.make(args.task, cfg=cfg, render_mode="rgb_array")
     env = gym.wrappers.RecordVideo(

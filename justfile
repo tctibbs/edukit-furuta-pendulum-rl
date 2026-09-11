@@ -102,6 +102,11 @@ hw-probe-trace SECONDS="220":
 hw-rl-balance SECONDS="110":
     uv run --with pyserial python -u scripts/capture_trace.py --mode b --seconds {{ SECONDS }}
 
+# Run the RL swing-up test: the exported policy swings up from rest and holds. Drives the arm; see the firmware runbook
+[group('hardware')]
+hw-rl-swingup SECONDS="110":
+    uv run --with pyserial python -u scripts/capture_trace.py --mode r --seconds {{ SECONDS }}
+
 # Fit a free-swing capture and redraw experiment 03's figures
 [group('hardware')]
 freeswing-fit TRACE="" FLAGS="":

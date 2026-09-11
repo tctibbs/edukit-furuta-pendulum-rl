@@ -13,3 +13,4 @@ Reward weights and reset distributions change with the task. They live with the 
 | [ADR-0003](0003-training-algorithm.md) | Training with rsl_rl PPO at [32, 32] |
 | [ADR-0004](0004-two-actuator-paths.md) | Modeling the swing-up kick as a driver position move |
 | [ADR-0005](0005-observation-space.md) | Observation space: a unit vector and two fitted rates |
+| [ADR-0006](0006-walked-rotor-target.md) | Walk the rotor's drive target across the control period |

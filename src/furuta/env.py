@@ -44,7 +44,7 @@ from isaaclab.utils.math import sample_uniform, wrap_to_pi
 from furuta.actuator import AccelerationCommandActuator
 from furuta.dissipation import PivotDissipation
 from furuta.estimator import VelocitySlopeEstimator
-from furuta.parameters import FurutaParameters, gravity_for_tilt
+from furuta.parameters import FurutaParameters
 
 PARAMS = FurutaParameters.from_yaml()
 """Loaded once at import. Rates and limits below come from it, so a refit is a change to
@@ -54,6 +54,9 @@ DEFAULT_USD = Path(__file__).resolve().parents[2] / "assets" / "edukit_pendulum.
 
 ROTOR_JOINT = "rotor_joint"
 PENDULUM_JOINT = "pendulum_joint"
+
+RECOVERABLE_MODE_RAD_S = 1.011
+"""Recoverable-set bound on |theta_dot + omega_g * theta| at 11.78 rad/s^2."""
 
 ROTOR_DRIVE_STIFFNESS = 1.0e5
 ROTOR_DRIVE_DAMPING = 50.0
@@ -80,12 +83,17 @@ class FurutaEnvCfg(DirectRLEnvCfg):
     sim: SimulationCfg = SimulationCfg(
         dt=PARAMS.physics_dt_s,
         render_interval=PARAMS.decimation,
-        gravity=gravity_for_tilt(0.0, PARAMS.gravity_m_s2),
+        gravity=PARAMS.gravity_vector,
     )
-    """Level gravity at the magnitude `config/edukit.yaml` gives.
+    """Gravity with the measured baseplate tilt, at the configured magnitude.
 
-    Setting it explicitly pins the magnitude to the config's 9.806. Isaac Lab's
-    `SimulationCfg` defaults to 9.81, so a scene that leaves this alone integrates
+    Because rolling the base and tilting gravity are the same dynamics, the tilt is a
+    scene setting and the asset stays level. `furuta.parameters.gravity_for_tilt`
+    derives the vector. A level plant, for a before and after comparison, is
+    `gravity_for_tilt(0.0, PARAMS.gravity_m_s2)`.
+
+    Setting it explicitly also pins the magnitude to the config's 9.806. Isaac Lab's
+    `SimulationCfg` defaults to 9.81. A scene that leaves gravity unset integrates
     against a different constant from the one behind `omega_g_squared` and every gate
     derived from it."""
 
@@ -128,6 +136,14 @@ class FurutaEnvCfg(DirectRLEnvCfg):
     In `position` the action is an absolute rotor angle in radians. It still passes
     through the microstep lattice, because the real rotor could not stand between
     microsteps either. Diagnostic only; no task sets it.
+    """
+
+    rotor_target_interpolation = True
+    """Linearly interpolate position targets across substeps with velocity feedforward.
+
+    Eliminates discrete jump-and-hold velocity spikes within each 2 ms control period.
+    The spikes inject unphysical centrifugal energy (see ADR-0006). Set False to
+    reproduce legacy stepping.
     """
 
     pivot_coulomb_deg_per_half_swing = PARAMS.coulomb_loss_deg_per_half_swing
@@ -213,6 +229,13 @@ class FurutaEnvCfg(DirectRLEnvCfg):
     velocity_window = 16
     """Samples in the velocity slope estimator. 32 ms at 500 Hz, against a 136 ms
     unstable time constant. Set to 2 for plain adjacent-sample differencing."""
+
+    episode_length_jitter = 0.0
+    """Fractional randomization of episode timeout per environment on reset.
+
+    Randomizes episode duration to prevent batch environments from synchronizing
+    rollout phases following early terminations.
+    """
     upright_deadband_rad = PARAMS.stiction_hold_angle_rad
     """The tilt at which pivot stiction alone holds the pendulum, derived from the
     measured Coulomb loss (`FurutaParameters.stiction_hold_angle_rad`).
@@ -309,9 +332,22 @@ class FurutaEnvCfg(DirectRLEnvCfg):
     wrong tool, because it also charges for the saturated bang-bang this task genuinely
     wants; this one is zero inside the rail."""
     rew_scale_action_rate = -0.01
+    action_rate_gate_rad = math.pi
+    """Tilt threshold inside which action-rate penalty applies (pi is everywhere).
+
+    Restricts action smoothness penalties to the near-vertical hold region to
+    suppress chatter without penalizing deliberate swing-up reversals.
+    """
     rew_scale_pendulum_rate = -0.005
     rew_scale_energy = 0.0
     """Weight on the energy-shaping term. Zero for balance, which never needs it."""
+
+    energy_excess_gain = 1.0
+    """Penalty multiplier for energy exceeding the separatrix.
+
+    Above 1, penalizes excess kinetic energy more steeply than energy deficits to
+    discourage policies from becoming trapped in continuous over-the-top rotation.
+    """
 
     balance_reset_fraction = 0.0
     """Fraction of resets drawn near vertical instead of from the wide spread.
@@ -326,6 +362,20 @@ class FurutaEnvCfg(DirectRLEnvCfg):
 
     balance_reset_angle_range = [-0.035, 0.035]
     balance_reset_rate_range = [-0.25, 0.25]
+
+    balance_reset_in_recoverable_set = False
+    """Sample near-vertical resets across the recoverable set.
+
+    Samples tilt, unstable mode, and moving rotor states to prepare the policy for
+    high-velocity swing-up handovers rather than stationary upright balance.
+    """
+
+    balance_reset_mode_range = [-0.9, 0.9]
+    """Unstable-mode range for near-vertical resets (rad/s at 11.78 rad/s^2 bound)."""
+
+    balance_reset_rotor_angle_range = [-0.5, 0.5]
+    balance_reset_rotor_rate_range = [-0.5, 0.5]
+    """Rotor angle and rate ranges for recoverable near-vertical resets."""
 
     hanging_reset_fraction = 0.0
     """Fraction of resets drawn near hanging, which is the task being scored.
@@ -383,6 +433,8 @@ class FurutaEnv(DirectRLEnv):
             actuator_params, num_envs=self.num_envs, device=self.device
         )
         self._rotor_target = torch.zeros(self.num_envs, device=self.device)
+        self._rotor_target_prev = torch.zeros(self.num_envs, device=self.device)
+        self._substep = 0
 
         # Pivot losses the drive cannot express. Inactive when both constants are zero,
         # and then `_apply_action` never writes an effort target at all.
@@ -413,6 +465,30 @@ class FurutaEnv(DirectRLEnv):
         self._action = torch.zeros(self.num_envs, device=self.device)
         self._pendulum_vel = torch.zeros(self.num_envs, device=self.device)
 
+        # Per-environment episode duration in steps, randomized by jitter.
+        self._episode_steps = torch.full(
+            (self.num_envs,), int(self.max_episode_length), device=self.device
+        )
+
+        # From-hanging evaluation diagnostics: tracking peak energy fraction relative
+        # to separatrix, minimum upright approach, and recoverable set entries.
+        self._from_hanging = torch.zeros(
+            self.num_envs, dtype=torch.bool, device=self.device
+        )
+        self._peak_energy_frac = torch.zeros(self.num_envs, device=self.device)
+        self._min_tilt = torch.full((self.num_envs,), math.pi, device=self.device)
+        self._entered_set = torch.zeros(
+            self.num_envs, dtype=torch.bool, device=self.device
+        )
+        # Consecutive steps within the capture gate (hold duration tracking).
+        self._gate_streak = torch.zeros(self.num_envs, device=self.device)
+        self._gate_streak_max = torch.zeros(self.num_envs, device=self.device)
+        self._hanging_peak_frac = torch.zeros((), device=self.device)
+        self._hanging_min_tilt_deg = torch.full((), 180.0, device=self.device)
+        self._hanging_gate_frac = torch.zeros((), device=self.device)
+        self._hanging_set_frac = torch.zeros((), device=self.device)
+        self._hanging_held_frac = torch.zeros((), device=self.device)
+
     # Scene.
 
     def _setup_scene(self) -> None:
@@ -438,6 +514,8 @@ class FurutaEnv(DirectRLEnv):
         # `torch.inference_mode()`, and holding its output tensor makes the reset's
         # in-place write to `_prev_action` illegal once an episode ends mid-rollout.
         action = actions.squeeze(-1).clone()
+        self._rotor_target_prev = self._rotor_target.clone()
+        self._substep = 0
 
         if self.cfg.rotor_command_mode == "position":
             # Replay: the action is where the rotor should be, not how hard to push.
@@ -461,8 +539,20 @@ class FurutaEnv(DirectRLEnv):
         sized against the substep, and `joint_vel` here is the value the solver is about
         to integrate from.
         """
+        target = self._rotor_target
+        if self.cfg.rotor_target_interpolation:
+            # Walk position target across substeps with velocity feedforward (ADR-0006).
+            self._substep = min(self._substep + 1, self.cfg.decimation)
+            fraction = self._substep / self.cfg.decimation
+            target = (
+                self._rotor_target_prev
+                + (self._rotor_target - self._rotor_target_prev) * fraction
+            )
+            self.robot.set_joint_velocity_target(
+                self._actuator.velocity.unsqueeze(-1), joint_ids=self._rotor_idx
+            )
         self.robot.set_joint_position_target(
-            self._rotor_target.unsqueeze(-1), joint_ids=self._rotor_idx
+            target.unsqueeze(-1), joint_ids=self._rotor_idx
         )
         if self._dissipation.active:
             pivot_vel = self.robot.data.joint_vel[:, self._pendulum_idx[0]]
@@ -544,6 +634,24 @@ class FurutaEnv(DirectRLEnv):
             torch.cos(upright) - 1.0
         )
         energy_error = energy / (2.0 * omega_g_sq)
+        # Peak separatrix energy fraction and closest upright approach for diagnostics.
+        self._peak_energy_frac = torch.maximum(
+            self._peak_energy_frac, 1.0 + energy_error
+        )
+        self._min_tilt = torch.minimum(self._min_tilt, torch.abs(upright))
+        # Recoverable set envelope scaled to current actuator acceleration bound.
+        window = (
+            RECOVERABLE_MODE_RAD_S
+            * self._actuator.max_acceleration
+            / PARAMS.max_acceleration_rad_s2
+        )
+        mode = self._pendulum_vel + math.sqrt(omega_g_sq) * upright
+        in_gate = torch.abs(upright) < self.cfg.pendulum_rate_gate_rad
+        self._entered_set |= in_gate & (torch.abs(mode) < window)
+        self._gate_streak = torch.where(
+            in_gate, self._gate_streak + 1.0, torch.zeros_like(self._gate_streak)
+        )
+        self._gate_streak_max = torch.maximum(self._gate_streak_max, self._gate_streak)
 
         # Where the arm ends up if it brakes now, signed: the stopping distance at the
         # actuator's full deceleration, added to the current angle. The scripted probe
@@ -582,7 +690,9 @@ class FurutaEnv(DirectRLEnv):
             "action": self.cfg.rew_scale_action * self._action.pow(2),
             "action_excess": self.cfg.rew_scale_action_excess
             * (self._action.abs() - 1.0).clamp(min=0.0).pow(2),
-            "action_rate": self.cfg.rew_scale_action_rate * action_rate.pow(2),
+            "action_rate": self.cfg.rew_scale_action_rate
+            * action_rate.pow(2)
+            * (torch.abs(upright) < self.cfg.action_rate_gate_rad).float(),
             # Distance from the energy of the upright equilibrium, normalised to run
             # -1 when hanging at rest and 0 on the separatrix, the trajectory that
             # arrives at vertical with no speed left. A height reward alone is happy
@@ -594,7 +704,15 @@ class FurutaEnv(DirectRLEnv):
             # The gradient is identical and the level is not: charging for hanging
             # makes a hanging episode cost more the longer it lasts, and running the
             # arm into its travel bound becomes a way out.
-            "energy": self.cfg.rew_scale_energy * (1.0 - torch.abs(energy_error)),
+            "energy": self.cfg.rew_scale_energy
+            * (
+                1.0
+                - torch.where(
+                    energy_error > 0,
+                    self.cfg.energy_excess_gain * energy_error,
+                    -energy_error,
+                )
+            ),
             # A quadratic well over the balance envelope, on top of the cosine.
             # Experiment 05 measured `cos` moving 0.058 across 20 degrees, which is why
             # balance does not use it; that flatness does not go away because the
@@ -623,6 +741,11 @@ class FurutaEnv(DirectRLEnv):
         log["action/saturated_fraction"] = (self._action.abs() >= 1.0).float().mean()
         log["state/upright_abs_deg"] = torch.rad2deg(torch.abs(upright)).mean()
         log["state/rotor_abs_rad"] = torch.abs(rotor).mean()
+        log["hanging/peak_energy_frac"] = self._hanging_peak_frac
+        log["hanging/min_tilt_deg"] = self._hanging_min_tilt_deg
+        log["hanging/reached_gate_frac"] = self._hanging_gate_frac
+        log["hanging/entered_set_frac"] = self._hanging_set_frac
+        log["hanging/held_half_s_frac"] = self._hanging_held_frac
         self.extras["log"] = log
 
         return torch.stack(list(terms.values()), dim=0).sum(dim=0)
@@ -630,7 +753,7 @@ class FurutaEnv(DirectRLEnv):
     def _get_dones(self) -> tuple[torch.Tensor, torch.Tensor]:
         pendulum, rotor = self._quantized_angles()
         upright = wrap_to_pi(pendulum - math.pi)
-        time_out = self.episode_length_buf >= self.max_episode_length - 1
+        time_out = self.episode_length_buf >= self._episode_steps - 1
         out_of_bounds = torch.abs(rotor) > self.cfg.max_rotor_angle_rad
         fallen = torch.abs(upright) > self.cfg.max_pendulum_angle_rad
         return out_of_bounds | fallen, time_out
@@ -639,6 +762,33 @@ class FurutaEnv(DirectRLEnv):
         if env_ids is None:
             env_ids = self.robot._ALL_INDICES
         super()._reset_idx(env_ids)
+
+        # Compute diagnostics for finished episodes that started hanging.
+        ending = self._from_hanging[env_ids]
+        if bool(ending.any()):
+            peaks = self._peak_energy_frac[env_ids][ending]
+            closest = self._min_tilt[env_ids][ending]
+            self._hanging_peak_frac = peaks.mean()
+            self._hanging_min_tilt_deg = torch.rad2deg(closest.mean())
+            self._hanging_gate_frac = (
+                (closest < self.cfg.pendulum_rate_gate_rad).float().mean()
+            )
+            self._hanging_set_frac = self._entered_set[env_ids][ending].float().mean()
+            held = self._gate_streak_max[env_ids][ending] >= 0.5 / self.step_dt
+            self._hanging_held_frac = held.float().mean()
+        self._peak_energy_frac[env_ids] = 0.0
+        self._min_tilt[env_ids] = math.pi
+        self._entered_set[env_ids] = False
+        self._gate_streak[env_ids] = 0.0
+        self._gate_streak_max[env_ids] = 0.0
+        self._from_hanging[env_ids] = False
+
+        if self.cfg.episode_length_jitter > 0.0:
+            full = int(self.max_episode_length)
+            shortest = int(round(full * (1.0 - self.cfg.episode_length_jitter)))
+            self._episode_steps[env_ids] = torch.randint(
+                shortest, full + 1, (len(env_ids),), device=self.device
+            )
 
         joint_pos = self.robot.data.default_joint_pos[env_ids].clone()
         joint_vel = self.robot.data.default_joint_vel[env_ids].clone()
@@ -685,6 +835,7 @@ class FurutaEnv(DirectRLEnv):
 
         if self.cfg.hanging_reset_fraction > 0.0:
             down = draw < self.cfg.hanging_reset_fraction
+            self._from_hanging[env_ids] = down.squeeze(-1)
             joint_pos[:, self._pendulum_idx] = torch.where(
                 down,
                 sample_uniform(
@@ -706,28 +857,37 @@ class FurutaEnv(DirectRLEnv):
                 joint_vel[:, self._pendulum_idx],
             )
 
+        near = torch.zeros_like(draw, dtype=torch.bool)
         if self.cfg.balance_reset_fraction > 0.0:
             near = draw >= (1.0 - self.cfg.balance_reset_fraction)
-            joint_pos[:, self._pendulum_idx] = torch.where(
-                near,
-                math.pi
-                + sample_uniform(
-                    self.cfg.balance_reset_angle_range[0],
-                    self.cfg.balance_reset_angle_range[1],
+            near_tilt = sample_uniform(
+                self.cfg.balance_reset_angle_range[0],
+                self.cfg.balance_reset_angle_range[1],
+                shape,
+                device,
+            )
+            if self.cfg.balance_reset_in_recoverable_set:
+                # Unstable mode sampled directly; rate derives from mode and tilt.
+                omega_g = math.sqrt(PARAMS.omega_g_squared)
+                mode = sample_uniform(
+                    self.cfg.balance_reset_mode_range[0],
+                    self.cfg.balance_reset_mode_range[1],
                     shape,
                     device,
-                ),
-                joint_pos[:, self._pendulum_idx],
-            )
-            joint_vel[:, self._pendulum_idx] = torch.where(
-                near,
-                sample_uniform(
+                )
+                near_rate = mode - omega_g * near_tilt
+            else:
+                near_rate = sample_uniform(
                     self.cfg.balance_reset_rate_range[0],
                     self.cfg.balance_reset_rate_range[1],
                     shape,
                     device,
-                ),
-                joint_vel[:, self._pendulum_idx],
+                )
+            joint_pos[:, self._pendulum_idx] = torch.where(
+                near, math.pi + near_tilt, joint_pos[:, self._pendulum_idx]
+            )
+            joint_vel[:, self._pendulum_idx] = torch.where(
+                near, near_rate, joint_vel[:, self._pendulum_idx]
             )
 
         rotor_angle = sample_uniform(
@@ -742,6 +902,28 @@ class FurutaEnv(DirectRLEnv):
             shape,
             device,
         )
+        if self.cfg.balance_reset_in_recoverable_set and bool(near.any()):
+            # Displace and move rotor to emulate post-swing-up handover states.
+            rotor_angle = torch.where(
+                near,
+                sample_uniform(
+                    self.cfg.balance_reset_rotor_angle_range[0],
+                    self.cfg.balance_reset_rotor_angle_range[1],
+                    shape,
+                    device,
+                ),
+                rotor_angle,
+            )
+            rotor_rate = torch.where(
+                near,
+                sample_uniform(
+                    self.cfg.balance_reset_rotor_rate_range[0],
+                    self.cfg.balance_reset_rotor_rate_range[1],
+                    shape,
+                    device,
+                ),
+                rotor_rate,
+            )
         joint_pos[:, self._rotor_idx] = rotor_angle
         joint_vel[:, self._rotor_idx] = rotor_rate
 
@@ -752,12 +934,19 @@ class FurutaEnv(DirectRLEnv):
         # is a step error the drive closes at full authority on the first substep.
         self._actuator.reset(env_ids, rotor_angle.squeeze(-1), rotor_rate.squeeze(-1))
         self._rotor_target[env_ids] = self._actuator.quantized_position()[env_ids]
+        self._rotor_target_prev[env_ids] = self._rotor_target[env_ids]
         self._prev_action[env_ids] = 0.0
 
-        # Seed both windows flat at the angle the next update will difference against.
-        # Seeding from the unquantized angle instead injects up to half a quantum over
-        # one period, 0.65 rad/s, into the first observation of every episode.
+        # Seed estimator buffers from quantized state to eliminate reset transients.
         encoder = PARAMS.rad_per_encoder_count
         pendulum = joint_pos[:, self._pendulum_idx[0]]
-        self._pendulum_rate.reset(env_ids, torch.round(pendulum / encoder) * encoder)
-        self._rotor_rate.reset(env_ids, self._actuator.quantized_position()[env_ids])
+        self._pendulum_rate.reset(
+            env_ids,
+            torch.round(pendulum / encoder) * encoder,
+            joint_vel[:, self._pendulum_idx[0]],
+        )
+        self._rotor_rate.reset(
+            env_ids,
+            self._actuator.quantized_position()[env_ids],
+            rotor_rate.squeeze(-1),
+        )

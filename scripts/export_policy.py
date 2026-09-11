@@ -22,10 +22,9 @@ environment maps the action through `tanh` before the actuator when it is set
 (`FurutaEnv._pre_physics_step`, src/furuta/env.py) and lets the actuator clamp it
 otherwise, and the two differ by up to 24 percent of the bound, at a raw action of
 magnitude 1. The checkpoint does not record it, so the caller has to. The balance tasks
-leave it off, and no task here turns it on, so the board side exists ahead of a
-task that needs it. The header
-carries the answer as `POLICY_SQUASH_ACTIONS`, and `policy_command` in board/policy.c
-follows it.
+leave it off, and the swing-up task (`FurutaSwingUpEnvCfg` in src/furuta/tasks.py)
+turns it on. The header carries the answer as `POLICY_SQUASH_ACTIONS`, and
+`policy_command` in board/policy.c follows it.
 
 The checkpoint is rsl_rl's `model_state_dict`; only the `actor.*` tensors are read. The
 exploration `std` is not exported: the board runs the mean action, as evaluation does.

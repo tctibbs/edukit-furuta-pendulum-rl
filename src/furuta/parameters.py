@@ -56,6 +56,8 @@ class FurutaParameters:
     coulomb_loss_deg_per_half_swing: float = 0.0
     friction_crossover_deg: float = 0.0
     quadratic_drag_coeff: float = 0.0
+    # Measured by experiment 03's full-circle sweep. Zero is a level base.
+    baseplate_tilt_deg: float = 0.0
     # The L6474 position-move profile the swing-up's kicks run on, and the balance
     # path's own clamp. Provenance in config/edukit.yaml; defaults keep older
     # configuration files loading.
@@ -181,6 +183,11 @@ class FurutaParameters:
     def control_dt_s(self) -> float:
         """Control period in seconds. 2 ms at the hardware's 500 Hz loop."""
         return 1.0 / self.loop_rate_hz
+
+    @property
+    def gravity_vector(self) -> tuple[float, float, float]:
+        """Scene gravity carrying the measured baseplate tilt (`gravity_for_tilt`)."""
+        return gravity_for_tilt(self.baseplate_tilt_deg, self.gravity_m_s2)
 
     @property
     def stiction_hold_angle_rad(self) -> float:

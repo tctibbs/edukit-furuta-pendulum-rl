@@ -98,7 +98,38 @@ class FurutaBalanceMomentumPlayPPORunnerCfg(FurutaBalanceMomentumPPORunnerCfg):
 
 
 @configclass
-class FurutaSwingUpPlayPPORunnerCfg(FurutaBalancePPORunnerCfg):
+class FurutaSwingUpPPORunnerCfg(FurutaBalancePPORunnerCfg):
+    """On-policy runner settings for `Furuta-SwingUp-Direct-v0`.
+
+    At the configured 11.78 rad/s^2 bound a swing-up pumps over about a dozen half
+    swings, and the default `gamma` of 0.9998 is a 10 s horizon. The Experiment 06
+    runs trained at 60 rad/s^2 and set `--gamma 0.999`, `--no-value-clip`, and
+    `--max-iterations 600` on the command line.
+    """
+
+    max_iterations = 900
+    save_interval = 100
+    experiment_name = "furuta_swingup"
+
+    algorithm: RslRlPpoAlgorithmCfg = RslRlPpoAlgorithmCfg(
+        class_name="PPO",
+        value_loss_coef=1.0,
+        use_clipped_value_loss=True,
+        clip_param=0.2,
+        entropy_coef=0.005,
+        num_learning_epochs=5,
+        num_mini_batches=4,
+        learning_rate=1.0e-3,
+        schedule="adaptive",
+        gamma=0.9998,
+        lam=0.99,
+        desired_kl=0.01,
+        max_grad_norm=1.0,
+    )
+
+
+@configclass
+class FurutaSwingUpPlayPPORunnerCfg(FurutaSwingUpPPORunnerCfg):
     """Evaluation variant. Same policy, no training."""
 
     max_iterations = 1

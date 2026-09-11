@@ -50,7 +50,8 @@ parser.add_argument(
     "--physics-hz",
     type=float,
     default=4000.0,
-    help="physics rate; the replay climbs 23 degrees higher at 4000 than at 1000",
+    help="physics rate. With --stepped-rotor, Experiment 04's replay climbs 23 degrees"
+    " higher at 4000 than at 1000; the walked target is untested at 1000 (ADR-0006)",
 )
 parser.add_argument(
     "--gap-profile",
@@ -63,6 +64,13 @@ parser.add_argument(
     action="store_true",
     help="drive BOTH joints from the capture, simulating nothing. This is the measured"
     " trace made visible, for showing beside a replay; it is not a result.",
+)
+parser.add_argument(
+    "--stepped-rotor",
+    action="store_true",
+    help="hand the drive one target per control period, the plant before ADR-0006,"
+    " instead of walking it across the substeps"
+    " (FurutaEnvCfg.rotor_target_interpolation)",
 )
 parser.add_argument("--out", required=True)
 parser.add_argument("--video", default=None, help="also record video to this folder")
@@ -103,6 +111,7 @@ def main() -> int:
     cfg.scene.num_envs = 1
     cfg.scene.env_spacing = 1.2
     cfg.rotor_command_mode = "position"
+    cfg.rotor_target_interpolation = not args.stepped_rotor
 
     if args.plant == "before":
         cfg.pivot_coulomb_deg_per_half_swing = 0.0

@@ -69,7 +69,8 @@ def main() -> int:
         default=DEFAULT_MODE,
         help=(
             "boot mode to enter: w free swing, y tilt sweep, d ring-down, "
-            "a lean, u the stock swing-up, b the RL balance policy"
+            "a lean, u the stock swing-up, b the RL balance policy, "
+            "r the RL swing-up image (at a boot prompt, r is direct rotor control)"
         ),
     )
     parser.add_argument(

@@ -1,0 +1,218 @@
+# Experiment 06 pinned configuration, as of 2026-09-11. This file is the record
+# for the runs logbook.md reports and is never regenerated from the live repo config.
+# Every value is Experiment 05's a60d balance configuration unless the comment says
+# why not; logbook.md carries the reasoning. Each rung_* block below is one
+# configuration and the logbook runs (seeds) trained on it.
+
+task: Furuta-SwingUp-Direct-v0
+play_task: Furuta-SwingUp-Direct-Play-v0
+
+plant:  # config/edukit.yaml: experiment 04's reconciled losses and experiment 03's tilt, carried into PhysX
+  quality_factor: 28.7
+  coulomb_loss_deg_per_half_swing: 0.65
+  quadratic_drag_coeff: 0.006
+  baseplate_tilt_deg: 0.51
+  gravity_m_s2: 9.806
+
+actuator:
+  accel_bound_rad_s2: 60             # a60d's; the balance path's physical bound is unmeasured (ADR-0004)
+  recoverable_mode_rad_s: 5.15       # 1.011 at 11.78, scaled with the bound; the rotor's capacity, not the policy's
+  squash_actions: true               # tanh, the swing-up's; a60d trained under a clamp, see a60d_under_tanh
+  max_step_rate_hz: 10000            # nominal, unmeasured; 19.6 rad/s. The bench has since run the arm to 10.8 rad/s (bench_2026_09_10)
+
+environment:
+  num_envs: 1024
+  episode_length_s: 10.0             # training; a60d's. The gate is 30 s
+  control_rate_hz: 500
+  physics_rate_hz: 4000              # every run here trained and was scored at 4 kHz; experiment 04's 23-degree gap between 1 and 4 kHz ran on the stepped target, and 1 kHz on the walked target is untested. a60d trained at 1 kHz
+  velocity_window: 16
+  estimator_reset: ramp at the reset rate   # was flat, so a moving reset read a rate climbing from zero over 32 ms
+  episode_clock: randomised at start        # init_at_random_ep_len=True; was False, every environment on one clock
+  rotor_target: walked across the substeps  # ADR-0006, on from 2026-09-10 late; every run through run 8 trained with the target stepped once per period
+  reset:
+    hanging_fraction: 0.40
+    hanging_angle_rad: [-0.4, 0.4]
+    hanging_rate_rad_s: [-1.0, 1.0]
+    near_vertical_fraction: 0.25
+    near_vertical_in_recoverable_set: true  # a60d's recoverable-set spread; the swing-up task first drew the balance task's original spread
+    near_vertical_angle_rad: [-0.3, 0.3]
+    near_vertical_mode_rad_s: [-4.58, 4.58] # 0.9 scaled by 60 / 11.78; the rate derives from mode and tilt
+    near_vertical_rotor_angle_rad: [-2.0, 2.0]
+    near_vertical_rotor_rate_rad_s: [-6.0, 6.0]
+    wide_angle_rad: [-3.14159, 3.14159]
+    wide_rate_rad_s: [-10.0, 10.0]
+    rotor_angle_rad: [-0.5, 0.5]            # the hanging and wide shares
+    rotor_rate_rad_s: [-0.5, 0.5]
+  termination:
+    max_pendulum_angle_rad: 3.14159         # no fall-over cut; hanging is where episodes start
+    max_rotor_angle_rad: 3.1416             # pi in training and in the gate; a60d trained at 12.566 and was scored at pi
+  reward:
+    alive: 1.0
+    terminated: -2.0
+    upright: 1.0                            # cos(tilt), the swing-up's
+    energy: 2.0                             # 1 - abs(E - E_up), normalised
+    capture: 2.0                            # quadratic well inside 0.35 rad
+    pendulum_rate: -0.0096                  # per (rad/s)^2, inside 0.35 rad only; -0.25 scaled by (11.78 / 60)^2
+    pendulum_rate_gate_rad: 0.35
+    rotor_travel: -0.5                      # a60d's, per rad past a 0.5 rad deadband
+    rotor_travel_deadband_rad: 0.5
+    rotor_rate: -0.01                       # a60d's, per (rad/s)^2 of arm rate
+    action: -0.01                           # per (normalized action)^2
+    action_rate: -0.5                       # a60d's, per (change in action per step)^2
+  diagnostics:                              # over the episodes that started hanging, read at each episode's end
+    - hanging/peak_energy_frac
+    - hanging/min_tilt_deg
+    - hanging/reached_gate_frac             # closest approach inside pendulum_rate_gate_rad (0.35 rad, the capture well), not the evaluation gate
+    - hanging/entered_set_frac              # every run but run 2 (r1-scratch); a slow pass over the top counts
+    - hanging/held_half_s_frac              # from run 3 on; 250 consecutive steps inside 0.35 rad
+
+agent:
+  seeds: [1]                                # one seed until a configuration passes the gate
+  num_steps_per_env: 128
+  max_iterations: 600                       # judgment; a60d took 300 for the hold alone
+  save_interval: 100
+  policy:
+    class_name: ActorCritic
+    actor_hidden_dims: [32, 32]
+    critic_hidden_dims: [32, 32]
+    activation: elu
+    init_noise_std: 1.0
+  algorithm:
+    class_name: PPO
+    num_learning_epochs: 5
+    num_mini_batches: 4
+    learning_rate: 0.001
+    schedule: adaptive
+    gamma: 0.999                            # a60d's, a 2 s horizon; a 0.9998 discount would be sized for a 15 s swing-up
+    lam: 0.99
+    entropy_coef: 0.005
+    desired_kl: 0.01
+    clip_param: 0.2
+    use_clipped_value_loss: false           # off; the clip is 0.2 in absolute return units against returns in the thousands
+    max_grad_norm: 1.0
+    value_loss_coef: 1.0
+
+evaluation:
+  script: scripts/evaluate_swingup.py
+  episodes_per_seed: 256
+  episode_length_s: 30.0
+  starts: hanging within 0.4 rad and 1 rad/s
+  hold_envelope_deg: 3.0
+  hold_window_s: 5.0
+  flags: --physics-hz 4000 --accel-bound 60   # plus --stepped-rotor for runs 1 to 8
+
+stack:
+  isaacsim: 5.1.0
+  isaaclab: 0.54.2
+  rsl_rl: 3.1.2
+  torch: 2.7.0+cu128
+  hardware: RTX 5080 16 GB, driver 591.86
+
+existence_proofs:  # scripted pumps at 60 handing over to a60d inside 5.15 rad/s and 0.35 rad, 256 hanging starts, 30 s, 2026-09-10, on the stepped plant (rotor_target_interpolation off, --stepped-rotor)
+  bang_bang:
+    law: a_max * sign(rate * cos(tilt)), governor allowance 2.0 rad
+    reached_3_deg: 242 of 256
+    handovers: 165
+    held_by_a60d: 19
+    terminated_on_travel: 146
+    handover_median: {s: 0.91, mode_rad_s: 3.06, arm_rad: 1.67, arm_rate_rad_s: 6.92}
+    held_by_arm_rate: {under_2: 4 of 22, 2_to_4: 10 of 22, 4_to_6: 4 of 22, 6_to_8: 1 of 66, 8_to_10: 0 of 33}
+  energy_gain_8:
+    law: the sign law scaled by clip(8 * (1 - E / E_up), 0, 1), governor allowance 2.0 rad
+    reached_3_deg: 238 of 256
+    handovers: 254
+    held_by_a60d: 53
+    terminated_on_travel: 201
+    handover_median: {s: 2.17, mode_rad_s: 1.66, arm_rad: 1.73, arm_rate_rad_s: 1.69}
+    held_by_mode: {under_1: 29 of 32, 1_to_2: 17 of 113, 2_to_3: 7 of 30, 3_to_4: 0 of 38, 4_to_5.2: 0 of 41}
+  kick_0p384_rad:
+    law: one rest-to-rest pulse of 0.384 rad against the swing at each pass through the bottom, no governor
+    reached_3_deg: 65 of 256
+    handovers: 67
+    held_by_a60d: 37
+    terminated_on_travel: 187
+    handover_median: {s: 6.53, kicks: 11, mode_rms_rad_s: 2.01, arm_rate_rms_rad_s: 0.23}
+  a60d_under_tanh: {pump: firmware, handovers: 256, held: 256, handover_mode_rms_rad_s: 0.99}   # the clamp-trained hold is intact under the swing-up task's tanh
+
+rung_1:  # 2026-09-10, logbook runs 1 to 4 (runs 1 and 2 on seed 1, run 1 repeated on seeds 2 and 3), 600 iterations, gate on the mean action
+  r1_scratch: {reached_3_deg: 236 of 256, held: 0, terminated: 20, swingup_s_median: 2.59, peak_arm_rate_rad_s: 10.5}
+  r1_scratch_iteration_300: {reached_3_deg: 0 of 256}   # the pump at 300 lived in the exploration noise
+  r1_warm:    {reached_3_deg: 255 of 256, held: 254, terminated: 1, swingup_s_median: 5.11, swingup_s_p90: 5.41, peak_arm_rate_rad_s: 11.2}
+  r1_warm_init: actor of docs/experiments/05-balance/checkpoints/momentum_a60d_seed1_model_299.pt, critic and std fresh
+  r1_warm_seed2: {reached_3_deg: 141 of 256, held: 141, terminated: 115, term_s_median: 0.45, swingup_s_median: 2.93, swingup_s_p90: 3.20, peak_arm_rate_rad_s: 10.6}
+  r1_warm_seed3: {reached_3_deg: 256 of 256, held: 255, terminated: 1, swingup_s_median: 1.96, swingup_s_p90: 2.90, peak_arm_rate_rad_s: 11.2}
+  seed_set_success: [0.992, 0.551, 0.996]   # seeds 1, 2, 3; 117 of the 118 failures are the travel bound
+  checkpoints: [checkpoints/swingup_r1_warm_seed1_model_599.pt, checkpoints/swingup_r1_warm_seed2_model_599.pt, checkpoints/swingup_r1_warm_seed3_model_599.pt]
+
+rung_clock:  # 2026-09-10, logbook run 5, seed 1, run 1's configuration plus episode_length_jitter 0.2 (episodes of 8 to 10 s)
+  r3_clock: {reached_3_deg: 256 of 256, held: 256, terminated: 0, swingup_s_median: 2.10, swingup_s_p90: 2.98, peak_arm_rate_rad_s: 11.0}
+  late_mean_tilt_correlation_lag_39: 0.50        # Pearson over iterations 450 to 599 of simulation/results.csv; seed 1 without the jitter reads 0.84 on the same measure
+  checkpoint: checkpoints/swingup_r3_clock_seed1_model_599.pt
+
+rung_governor:  # 2026-09-10, logbook run 6, seed 1, run 1's configuration plus rew_scale_travel_governor -0.5 per rad^2 of projected overrun past a 2.2 rad margin
+  r4_governor: {reached_3_deg: 156 of 256, held: 156, terminated: 100, term_s_median: 0.58, swingup_s_median: 1.26, swingup_s_p90: 1.31, peak_arm_rate_rad_s: 10.5}
+  governor_mean_charge_per_step: 0.002      # never bound; the policy left the episode through the travel termination instead
+  checkpoint: not kept
+
+bench_2026_09_10:  # one unit, one evening, three attempts, a sample; hardware/rl_swingup_20260910.tsv
+  policy: checkpoints/swingup_r3_clock_seed1_model_599.pt exported with --squash-actions, board/policy_weights.h MD5 69c40f07
+  firmware: mode r, RL_ACCEL_BOUND_RAD_S2 60, torque MAX_TORQUE_SWING_UP, arm centred, pendulum settled
+  deployment_check: {cycles_replayed: 3000, max_command_error_rad_s2: 0.003}   # logged counts and microsteps through the host build of board/
+  swingup: {bottom_pass_rad_s: [10.2, 13.1], peak_arm_rad: 2.83, peak_arm_rate_rad_s: 10.8, inside_3_deg_s: [1.72, 1.60], simulated_median_s: 2.10}
+  arrival_as_observed: {attempt_1: {tilt_deg: 2.85, rate_rad_s: -0.33, mode_rad_s: 0.03, arm_rad: 1.42, arm_rate_rad_s: 4.21}, attempt_2: {tilt_deg: 2.85, rate_rad_s: -1.50, mode_rad_s: -1.13, arm_rad: 1.04, arm_rate_rad_s: 4.65}}
+  catch: {inside_20_deg_s: [0.60, 0.29], drift_before_the_command_moved_ms: 240, outcome: fell on every attempt}
+  after_the_miss: {rotation_rev_per_s: 2.3 to 2.5, of_separatrix_bottom_speed: 1.0 to 1.1, duration_s: [7, 11]}
+  stops: {attempt_1: time limit 30 s (fall stop did not arm, fixed in firmware after), attempt_2: fall stop at 13.2 s, attempt_3: fall stop at 19.3 s}
+  same_policy_in_simulation: {inside_3_deg_s: 1.94, arm_at_arrival_rad: 0.55, arm_rate_at_arrival_rad_s: -0.09, peak_arm_rad: 2.84, peak_arm_rate_rad_s: 10.1, bottom_pass_rad_s: [10.3, 11.9]}   # simulation/trace_r3_clock_seed1.csv
+  conversion_gate_on_that_trace: {rows: 5000, max_error_rad_s2: 0.000078, verdict: PASS}
+  capture_replayed_through_the_plant:   # scripts/replay_trace.py --plant after --stepped-rotor, rotor driven by the dead reckoning, pendulum free
+    first_bottom_pass_rad_s: {measured: 10.3, simulated: 13.0}
+    inside_90_deg_s: {measured: 0.84, simulated: 0.33}
+    inside_3_deg_s: {measured: 1.70, simulated: 1.52}
+    after_arrival: {measured: within 3 deg from 1.70 to 1.90 s, simulated: over the top, 169 deg past at 1.90 s}
+    reading: the model gives more pendulum per unit of rotor motion than the machine at 10.8 rad/s; stepper fidelity or the arm-rate term, undecided
+  planar_model_driven_by_the_logged_commands:   # src/furuta/planar.py with centrifugal 0.974, exact 2 ms commands, attempt 1, 0 to 1.5 s
+    rms_tilt_error_deg: {as_logged: 6.3, arm_motion_x0.9: 19.7, arm_rate_term_x0.75: 18.5, arm_rate_term_x0: 66.6}
+    inside_90_deg_s: {bench: 0.84, planar: 0.84, articulation_4khz: 0.33}
+    bottom_pass_rad_s: {bench: [10.3, 13.3], planar: [8.9, 12.7], articulation_4khz: [13.0, 14.1]}
+    reading: the stepper delivered its dead reckoning and the machine follows the planar model with the arm-rate term; the surplus is the articulation's, solver rate or inertia model undecided
+  articulation_by_physics_rate_stepped_target: {first_bottom_pass_rad_s: {2k: 6.4, 4k: 13.0, 8k: 14.0}, mean_error_deg_0_to_1p5_s: {2k: 17.1, 4k: 12.6, 16k: 73.3}}
+  articulation_walked_target: {first_bottom_pass_rad_s: {2k: 9.6, 4k: 9.6, 16k: 9.6}, second: 13.4, inside_90_deg_s: 0.83, mean_error_deg_0_to_1p5_s: 4.3}   # the plant defect and its fix, ADR-0006
+  catch_map:   # scripts/evaluate_catch_map.py, run 5's policy, 16 x 16 arm states, 10 s, clean = inside 3 deg and never past 30
+    attempt_1_pendulum: {clean: 149 of 256, recovered: 63, missed: 44, bench_cell: fell at 0.34 s}
+    attempt_2_pendulum: {clean: 139 of 256, recovered: 23, missed: 94, bench_cell: fell at 0.20 s}
+    upright_still:      {clean: 149 of 256, recovered: 55, missed: 52}
+    clean_fraction_arm_moving_outward_over_2_rad_s: 0.03 to 0.15
+    clean_fraction_arm_moving_back_over_2_rad_s: 0.77 to 0.83
+
+rung_armspeed:  # 2026-09-10, logbook run 8, seed 1, run 5's configuration plus rew_scale_rotor_rate -0.1 (was -0.01), after the bench
+  r6_armspeed: {reached_3_deg: 256 of 256, held: 249, terminated: 1, term_s_median: 4.12, swingup_s_median: 3.48, swingup_s_p90: 3.78, peak_arm_rate_rad_s: 8.4}
+  rotor_rate_charge_per_step_at_the_end: 0.40
+  checkpoint: checkpoints/swingup_r6_armspeed_seed1_model_599.pt   # exported to board/policy_weights.h, MD5 e4deba5e
+
+bench_2026_09_10_session_2:  # the slow-arm policy (logbook run 8, r6-armspeed), mode r with the wrapped fall stop and the return-to-centre; hardware/rl_swingup_20260910_session2.tsv
+  attempts: {seen: 4, caught: 4, recorded: 2}
+  swingup: {bottom_pass_rad_s: [7.3, 9.4, 12.6], peak_arm_rad: 1.87, peak_arm_rate_rad_s: 7.7, inside_3_deg_s: 2.99, simulated_s: 3.53}
+  arrival_as_observed: {tilt_deg: -2.9, rate_rad_s: 0.52, mode_rad_s: 0.16, arm_rad: 1.05, arm_rate_rad_s: -1.57}
+  # every hold statistic in this file is measured from 5 s to the end of the attempt
+  hold: {attempt_1: fell at 10.8 s with the arm walked out to 2.84 rad, attempt_2: full 30 s, tilt_rms_deg: 1.68, mean_tilt_deg: 1.65, command_rms_rad_s2: 1.7, arm_drift_rad_s: [0.33, 0.06]}
+  return_to_centre: from 1398 microsteps to 0 after attempt 1
+
+rung_smooth:  # 2026-09-10 late, logbook runs 9 to 11 (seeds 1 to 3), run 5's configuration on the corrected plant (rotor_target_interpolation on, ADR-0006)
+  r7_smooth: {reached_3_deg: 252 of 256, held: 252, terminated: 4, term_s_median: 0.48, swingup_s_median: 1.25, swingup_s_p90: 1.38, peak_arm_rate_rad_s: 11.6}
+  trace_from_rest: {inside_3_deg_s: 1.18, arm_at_arrival_rad: -0.43, arm_rate_at_arrival_rad_s: 3.69, peak_arm_rate_rad_s: 11.4, strokes: 1}
+  checkpoint: checkpoints/swingup_r7_smooth_seed1_model_599.pt   # not on the board yet
+  r7_smooth_seed2: {reached_3_deg: 256 of 256, held: 256, terminated: 0, swingup_s_median: 2.12, swingup_s_p90: 2.21, peak_arm_rate_rad_s: 11.0}
+  r7_smooth_seed3: {reached_3_deg: 250 of 256, held: 248, terminated: 8, term_s_median: 0.42, swingup_s_median: 1.51, swingup_s_p90: 2.25, peak_arm_rate_rad_s: 15.1}
+  seed_set_success: [0.984, 1.000, 0.969]   # mean 0.984; run 1's configuration, without the clock jitter, read 0.992, 0.551, 0.996 on the stepped plant
+  catch_map: {own_arrival: {clean: 220 of 256, held: 226}, upright_still: {clean: 216 of 256, held: 228}, clean_fraction_arm_moving_outward_over_2_rad_s: 0.43, coming_back: 1.00}
+  session_2_capture_through_the_corrected_plant: {bottom_pass_rad_s: {bench: [7.3, 9.4, 12.6], simulated: [7.1, 9.7, 13.1]}, inside_90_deg_s: {bench: 1.26, simulated: 1.25}, mean_error_deg_over_3_s: 5.2}   # an independent check of ADR-0006 at 7.7 rad/s
+
+bench_2026_09_11_session_4:  # run 10 (run 9's configuration on seed 2), the first corrected-plant policy on hardware; hardware/rl_swingup_20260911_session4.tsv
+  swingup: {bottom_pass_rad_s: [7.1, 13.1], peak_arm_rad: 1.71, peak_arm_rate_rad_s: 10.2, inside_20_deg_s: 1.50, inside_3_deg_s: 2.25, simulated_inside_3_deg_s: 1.38}
+  arrival_as_observed: {tilt_deg: -2.9, rate_rad_s: 0.26, mode_rad_s: -0.10, arm_rad: -0.46, arm_rate_rad_s: 2.36}
+  hold: {duration_s: 30, left_30_deg: false, tilt_rms_deg: 0.32, tilt_mean_deg: -0.29, arm_rad: 1.14, arm_drift_rad_s: -0.001, command_rms_rad_s2: 3.9}
+  disturbance: phone recording at 08:09, no serial capture; struck from upright, back upright in about 1 s   # figures/bench_disturbance.gif
+  firmware_defects_found: [unbounded wait in the return hung the board, fall stop ended runs 0.2 s after arrival, the fall fix chained the travel and time stops as else-if branches]   # found and fixed in Session 3 that morning (hardware/rl_swingup_20260911_control.tsv), before this session
+
+planar_sizing: simulation/planar_sizing.csv, figures/planar_sizing.py  # both laws and the kick pump, with and without the arm-rate term

@@ -6,6 +6,7 @@ from furuta.agents.rsl_rl_ppo_cfg import (
     FurutaBalancePlayPPORunnerCfg,
     FurutaBalancePPORunnerCfg,
     FurutaSwingUpPlayPPORunnerCfg,
+    FurutaSwingUpPPORunnerCfg,
 )
 
 __all__ = [
@@ -13,5 +14,6 @@ __all__ = [
     "FurutaBalanceMomentumPlayPPORunnerCfg",
     "FurutaBalancePPORunnerCfg",
     "FurutaBalancePlayPPORunnerCfg",
+    "FurutaSwingUpPPORunnerCfg",
     "FurutaSwingUpPlayPPORunnerCfg",
 ]

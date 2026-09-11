@@ -33,7 +33,7 @@ Observation vector design incorporates specific architectural decisions detailed
 
 A single continuous action drives the system: rotor angular acceleration, normalized to $[-1, 1]$ and scaled to the nominal $11.78\text{ rad/s}^2$ limit. [ADR-0004](../adrs/0004-two-actuator-paths.md) documents why the environment commands acceleration rather than torque. The $11.78\text{ rad/s}^2$ limit represents the firmware ramp generator profile rather than a measured motor torque ceiling.
 
-Simulation executes policy updates at 500 Hz with a 2 ms control period while stepping PhysX dynamics at 1000 Hz, applying commanded accelerations across two physics substeps. The `AccelerationCommandActuator` class integrates commanded acceleration into microstep-quantized position targets matching the command interface of the hardware stepper driver.
+Simulation executes policy updates at 500 Hz with a 2 ms control period while stepping PhysX dynamics at 1000 Hz, applying commanded accelerations across two physics substeps. The swing-up task keeps that default in code but trains and is scored at 4 kHz, eight substeps, passed as `--physics-hz 4000`; 1 kHz on the walked target is untested. The `AccelerationCommandActuator` class integrates commanded acceleration into microstep-quantized position targets matching the command interface of the hardware stepper driver. Each substep's drive target is walked from the previous period's target to the current one, with the commanded velocity fed forward ([ADR-0006](../adrs/0006-walked-rotor-target.md)).
 
 ## Termination boundaries
 
@@ -93,7 +93,8 @@ Tasks defined in [`src/furuta/tasks.py`](../../src/furuta/tasks.py) adapt enviro
 | `Furuta-Balance-Direct-v0` | Baseline balance task configured with nominal limits | Primary balance policy training |
 | `Furuta-Balance-Direct-Play-v0` | Deterministic mean action with zero exploration noise | Milestone gate evaluation and disturbance testing |
 | `Furuta-Balance-Momentum-Direct-v0` | Resets across the recoverable set alongside a $\pi$ travel limit | Swing-up handover catch training |
-| `Furuta-SwingUp-Direct-Play-v0` | Hanging start, $\pi$ travel limit, and omitted tilt termination | Scripted and firmware swing-up evaluation |
+| `Furuta-SwingUp-Direct-v0` | Hanging, near-vertical and full-circle resets, cosine upright, energy and capture rewards, `tanh` on the command, $\pi$ travel limit, and omitted tilt termination | Swing-up policy training |
+| `Furuta-SwingUp-Direct-Play-v0` | Hanging start, $\pi$ travel limit, and omitted tilt termination | Milestone gate evaluation, and scripted and firmware swing-up evaluation |
 
 ## Where the limits come from
 
