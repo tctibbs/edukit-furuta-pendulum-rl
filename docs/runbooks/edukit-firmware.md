@@ -1,10 +1,10 @@
 # Running the Edukit firmware
 
-Guidance on how to run the board, what each boot mode does, and how to work with the serial link. [edukit-assembly.md](edukit-assembly.md) covers assembly and the encoder wiring.
+Operational documentation covering firmware execution, boot mode capabilities, and serial telemetry protocols. Consult [edukit-assembly.md](edukit-assembly.md) for mechanical assembly and encoder wiring details.
 
 ## Flashing
 
-`config/firmware.yaml` declares every image `just hw-flash` can write to the board. To flash a new one, declare it here with a path and a description.
+Configuration file `config/firmware.yaml` defines every binary image available for flashing via `just hw-flash`. To add custom firmware targets, append the corresponding path and description to `config/firmware.yaml`.
 
 ```bash
 just hw-targets  # list the declared targets
@@ -13,131 +13,135 @@ just hw-flash bench  # write a named target
 just hw-flash bench --force  # write even when the firmware already matches
 ```
 
-Flashing requires `st-flash` from the stlink package: <https://github.com/stlink-org/stlink>.
+Flashing requires the `st-flash` utility from the open source stlink package: <https://github.com/stlink-org/stlink>.
 
-By default the board is only flashed when the image differs from what's already on it. `scripts/flash_firmware.py` reads the flash back and compares it byte for byte. It also sanity-checks the image first. A truncated file or one built for a different part fails that check.
+The flashing pipeline defaults to idempotent execution, programming the microcontroller exclusively when the local binary diverges from resident flash contents. Helper script `scripts/flash_firmware.py` reads back device flash for byte-level comparison alongside initial binary integrity validation. Truncated binaries or images compiled for alternate microcontroller targets trigger validation failures prior to write operations.
 
 ## Modes
 
 | Entry | Mode |
 |---|---|
 | `1` | Inverted pendulum control. Prompts for a rotor tracking reference: chirp, step, modulated sine, or log-spaced comb |
-| `2` | Suspended pendulum control, same reference options |
+| `2` | Suspended pendulum control, identical reference options |
 | `s` | Single PID, prompts for pendulum gains |
 | `g` | General mode, dual PID or full state feedback, with motor configuration |
 | `t` | Test of rotor actuator and pendulum angle encoder |
 | `r` | Direct rotor control |
-| `c` | Motor characterization, sinusoidal or square-wave chirp. Not in the boot menu |
-| `w` | Free-swing logger (`probe-freeswing`). Added by this project. Streams pendulum angle at 500 Hz with the rotor held, until reset. The bring-up baseline. `probe-pump` supersedes it for identification, and that ring-down is a driven free-swing across every amplitude |
-| `y` | Tilt sweep (`probe-sweep`). Added by this project. Steps the rotor through a full turn in 30 degree increments, repeated a few times, logging the pendulum's resting angle at each dwell. The full turn also confirms the cable doesn't bound the travel |
-| `d` | Ring-down (`probe-pump`). Added by this project. Pumps the pendulum to each of a list of target amplitudes with the proven stock swing-up kick, cuts drive, and logs the free decay. Amplitudes below 180 degrees give the dissipation-versus-amplitude curve. A target beyond 180 degrees drives it over the top into rotation. That free spin-down gives counts per revolution. The sub-vertical targets repeat automatically, 10 times by default. The repeats give the curve its error bars |
-| `a` | Actuator characterization via the pendulum's lean (`probe-lean`). Added by this project. A `MAX_ACCEL/16` unit probe of one burst each direction, ten times, each with an in-place dwell bracket for step-loss detection against the tilt map. Then a descending min-command ladder, `MAX_ACCEL` over 16 to 128 in each direction, testing for a minimum-speed floor. Aborts if the dead-reckoned rotor leaves a bounded arc. For the 11.78 rad/s^2 acceleration bound, the minimum-speed floor that leaves the rotor creeping at a commanded stop, and the microsteps-vs-full-steps reading. That floor measurement folds in the old creep mode `z`. Drives the motor, so run it supervised |
-| `u` | Golden swing-up trace (`probe-trace`). Added by this project. Runs the real stock swing-up and balance unchanged, adding only logging: the pendulum and rotor through the swing-up in state `D`, and a short balance hold in state `B`. Repeats automatically for 10 swing-ups and stops itself. The trajectory is the reference the simulation must reproduce when driven through the same rotor motion in experiment 04, and it's the arrival-at-vertical a [Milestone 05](../milestones/M5-balance.md) balance policy must learn to catch. Drives the motor, so run it supervised |
-| `q` | Exit control and stop rotor motion. Not in the boot menu |
+| `c` | Motor characterization, sinusoidal or square-wave chirp, not present in boot menu |
+| `w` | Free-swing logger (`probe-freeswing`). Custom project addition. Streams pendulum angle at 500 Hz with the rotor locked stationary until hardware reset. Serves as the bring-up baseline. Mode `probe-pump` supersedes the baseline for identification, providing driven free-swing data across complete amplitude ranges |
+| `y` | Tilt sweep (`probe-sweep`). Custom project addition. Steps the rotor through a full rotation in 30-degree increments, logging gravitational resting angles at each dwell. Full rotation also confirms cable routing avoids travel restrictions |
+| `d` | Ring-down (`probe-pump`). Custom project addition. Actuates the pendulum to target amplitudes using the proven swing-up impulse, disengages drive torque, and logs free decay. Amplitudes below 180 degrees generate the dissipation curve. Targets exceeding 180 degrees drive continuous rotation over the apex, providing calibration data for counts per revolution. Sub-vertical targets repeat ten times automatically to establish empirical confidence bounds |
+| `a` | Actuator characterization via pendulum deflection (`probe-lean`). Custom project addition. Executes a `MAX_ACCEL/16` pulse across ten repetitions per direction, bracketing each pulse with dwell windows for step-loss evaluation against tilt calibrations. Descends through a minimum-command ladder with `MAX_ACCEL` scaled from 16 to 128 to quantify velocity thresholds, stopping execution if rotor motion exceeds boundary limits. Evaluates the 11.78 rad/s^2 acceleration limit, low-speed creep thresholds, and microstep scaling. Actuation requires active supervision |
+| `u` | Golden swing-up trace (`probe-trace`). Custom project addition. Executes standard swing-up and balance routines while logging pendulum and rotor dynamics across swing-up state `D` and balance state `B`. Automatically concludes after ten cycles. The captured trace provides the reference trajectory for simulation validation in [Experiment 04](../experiments/04-model-reconciliation/writeup.md) and represents the target state for the [Milestone 05](../milestones/M5-balance.md) balance policy. Actuation requires active supervision |
+| `q` | Exit control loop and halt rotor motion, not present in boot menu |
 
-The identification modes `d`, `a`, and `u` each own the board until reset and log in the extended format described under [Identification battery](#identification-battery) below. The counts-per-revolution check and the hold-stiffness discriminator ride on modes `w` and `d` respectively, as procedures rather than new modes.
+Identification modes `d`, `a`, and `u` control hardware execution until manual reset, formatting telemetry according to the specifications in [Identification battery](#identification-battery). Verification of encoder scale and holding torque execute via procedural protocols on top of modes `w` and `d`, rather than requiring unique firmware modes.
 
-**On boot there are five seconds to pick a mode.** Otherwise the board defaults to inverted pendulum control and starts driving the motor.
+**Firmware boot enforces a five-second mode selection window.** Expiring the timer without user input causes the microcontroller to default to inverted pendulum control and initiate motor actuation.
 
 ## Entering a mode
 
-`just hw-monitor` opens a read-only console on the serial link for reading the boot banner or watching a mode run. Give it a mode and it also answers the boot prompt after a reset:
+Command `just hw-monitor` opens a read-only console on the serial interface for inspecting boot banners or monitoring active telemetry streams. Passing a mode character transmits the selection automatically following hardware reset:
 
 ```bash
 just hw-monitor t  # then press the physical reset button
 ```
 
-Any serial terminal works too, as long as the mode arrives inside the five-second window.
+Standard serial terminals operate equivalently, provided mode selection occurs within the initial five-second window.
 
 ## Mode `1`, inverted pendulum control
 
-Selecting mode `1` explicitly opens a chain of prompts. Each accepts 1 or 0 and blocks until answered.
+Selecting mode `1` initiates an interactive prompt sequence. Prompts accept binary input, either 1 or 0, and block execution until input arrives.
 
-Most of them switch on a rotor tracking reference, chirp, step, modulated sine, or a comb of log-spaced sinusoids. These are excitation sources for system identification, as is mode `c`, which drives the motor alone. A frequency response requires no rebuild.
+Prompts configure rotor tracking references: chirp, step, modulated sinusoidal, or log-spaced frequency combs. The signals serve as excitation sources for system identification alongside mode `c` for motor-only excitation, enabling empirical frequency response analysis without firmware recompilation.
 
-The two exceptions switch off features that default on. Platform angle calibration is an extra PID loop correcting rotor drift from base tilt and encoder offset, described in Manual App. G. Disabling swing-up gives a controller that holds the pendulum without first launching it. That's safer while the wiring remains unconfirmed.
+Two configuration prompts turn off default features: platform angle calibration, an auxiliary PID loop compensating rotor drift induced by mechanical tilt and encoder offset described in Manual Appendix G, and automatic swing-up. Turning off swing-up configures the controller exclusively for upright stabilization without initial launching maneuvers, enhancing safety during initial wiring verification.
 
-## Mode `t`, a test of the rotor actuator and the pendulum angle encoder
+## Mode `t`: testing rotor actuation and encoder feedback
 
-Mode `t` runs the rotor through 0, -45, 0, +90, 0 degrees, then prompts for a manual 360 degree pendulum rotation in each direction, and repeats until interrupted.
+Mode `t` exercises the stepper motor through sequential angular setpoints to 0, -45, 0, +90, and 0 degrees, prompts for manual 360-degree pendulum sweeps in clockwise and counter-clockwise directions, and cycles continuously until interrupted.
 
-With the motor supply disconnected, every reported rotor position stays at `0.00` and the speed profile reads `Min 0 Max 0`. The L6474 requires its own supply to report position at all, so connect it before concluding anything from a zero reading.
+With motor power disconnected, reported rotor coordinates remain locked at `0.00` and velocity profiles report `Min 0 Max 0`. The L6474 driver requires dedicated supply voltage to report position coordinates. Restore motor power before evaluating telemetry readings.
 
-## Modes `w` and `y`, the free-swing and sweep loggers
+## Modes `w` and `y`, free-swing and sweep loggers
 
-The stock modes report only while the control loop drives the rotor, so a free measurement gets nothing out of them.
+Stock firmware modes generate telemetry exclusively while active control loops drive the stepper motor, preventing unforced baseline measurements.
 
-Mode `w` (`probe-freeswing`) holds the rotor energized and stationary. A free rotor makes the machine a coupled two-degree-of-freedom system, and the frequency measured would not be the suspended mode of Manual App. D. Mode `y` (`probe-sweep`) sweeps the rotor instead and logs where the pendulum settles, so any variation across the sweep is baseplate tilt. The sweep steps the rotor through a full turn. The cable coils through that turn and doesn't bound the travel.
+Mode `w` (`probe-freeswing`) holds the stepper motor energized and stationary. Allowing an unpowered rotor transforms the hardware into a coupled two-degree-of-freedom dynamic system, altering the natural suspended pendulum oscillation documented in Manual Appendix D. Mode `y` (`probe-sweep`) steps the rotor through a full rotation to record gravitational settling positions, mapping baseplate inclination across rotor angles while verifying unimpeded cable coiling.
 
 ```bash
 just hw-probe-freeswing 300  # mode w, writes to data/freeswing/
 just hw-probe-sweep 110  # mode y, writes to data/tilt/
 ```
 
-Both take a duration in seconds. Press reset when the capture prompts for it. Several releases can share one `probe-freeswing` capture.
+Both commands accept capture durations in seconds. Depress the hardware reset button when prompted by the script. Multiple software iterations can reference a single `probe-freeswing` baseline.
 
 ## Modifying the firmware
 
-The supplied source is in `docs/reference/STM32CubeIDE_project.zip`, which carries a GCC makefile, so it builds from the command line without the IDE. The obstacles below are all one-time.
+Supplied reference firmware resides in `docs/reference/STM32CubeIDE_project.zip`. The archive includes GCC makefiles, enabling command-line compilation without IDE dependencies.
 
-Building requires an `arm-none-eabi` toolchain with newlib. Package-manager builds of `arm-none-eabi-gcc` often omit it, and every compile then fails on a missing `stdint.h`. ARM's prebuilt toolchains carry it: <https://developer.arm.com/downloads/-/arm-gnu-toolchain-downloads>. On macOS the Homebrew `arm-none-eabi-gcc` formula is the incomplete kind: it has no newlib, and core Homebrew ships no `arm-none-eabi-newlib` formula to add one. Use ARM's prebuilt instead. One route is the `gcc-arm-embedded` cask, a `.pkg` that needs an administrator password. The other is the tarball from the preceding link, extracted to a user directory and put first on `PATH`. On this Mac that tarball is at `~/.local/arm-gnu-toolchain/bin`. Put it ahead of the Homebrew build with `export PATH="$HOME/.local/arm-gnu-toolchain/bin:$PATH"` before any build, or every recompile fails on the missing `stdint.h`.
+Toolchain requirements necessitate an `arm-none-eabi` cross-compiler bundled with the newlib C runtime library. Standard macOS package manager formulas for `arm-none-eabi-gcc` omit newlib headers, causing compilation errors on missing `<stdint.h>`. Install official ARM toolchain distributions directly: <https://developer.arm.com/downloads/-/arm-gnu-toolchain-downloads>. Extract the official archive locally and prepend the binary folder to `PATH`:
 
-The archive ships prebuilt `.o` files, so a first `make all` on an incomplete toolchain can still link them into a working `.bin` and look like a successful build. The missing newlib only surfaces on the first real recompile, when a source file actually changes. Force a real compile to confirm the toolchain before trusting it: `touch` a source file, or delete the objects as described further on.
+```bash
+export PATH="$HOME/.local/arm-gnu-toolchain/bin:$PATH"
+```
 
-Everything below happens in `Projects/Multi/Examples/MotionControl/IHM01A1_ExampleFor1Motor/SW4STM32/STM32F401RE-Nucleo/Debug`, seven levels into the archive.
+The source archive includes stale precompiled `.o` object files. An initial `make all` invocation on a broken toolchain can link existing objects into a functional binary, giving the illusion of successful compilation until source modifications trigger true recompilation. Force explicit compilation by cleaning existing object files before proceeding.
 
-The generated makefiles carry an absolute path from the original author's machine for the linker script and every source file. It's in `makefile` and in all seven `subdir.mk` files beneath it, so rewrite the prefix in every one of them.
+Compilation commands execute within `Projects/Multi/Examples/MotionControl/IHM01A1_ExampleFor1Motor/SW4STM32/STM32F401RE-Nucleo/Debug`.
 
-The directory ships prebuilt objects. Delete `*.o`, `*.d`, and `*.su` first, but **keep `objects.list`**. Despite the extension it's a build input, the linker's object list, and deleting it leaves the link with nothing to do.
+Generated project makefiles embed hard-coded absolute paths referencing original developer workstations across `makefile` and all seven child `subdir.mk` configuration files. Update path prefixes across all build manifests before invoking make.
 
-Then `make all`, with the toolchain first on `PATH`. Its `secondary-outputs` target runs `arm-none-eabi-objcopy -O binary`, so the build leaves `STM32F401RE-Nucleo.bin` beside the `.elf`. That `.bin` is the file `st-flash` writes.
+Purge precompiled artifacts by deleting `*.o`, `*.d`, and `*.su` files, while **preserving `objects.list`**. Despite file extensions, `objects.list` provides critical linker input. Removing the list stalls link stages.
 
-A different compiler built `Edukit_firmware.bin`. The rebuild won't match it byte for byte. Expect around 140 KB against the stock 130 KB. Check behavior instead: the same banner and the same modes.
+Execute `make all` with the ARM toolchain positioned first in `PATH`. The `secondary-outputs` target runs `arm-none-eabi-objcopy -O binary` to produce `STM32F401RE-Nucleo.bin` alongside the output binary. Flashing script `just hw-flash` programs this binary image onto the microcontroller.
 
-**`make` doesn't rebuild after a header-only change, and it fails silently.** The generated makefile marks every target `.SECONDARY`, and the `.d` dependency files carry absolute paths from the machine that generated them, so `make` never tracks the headers. After editing only a header such as `IDENT_AUTOSTART_MODE` in `edukit_system.h`, `make all` finds the `.elf` newer than the prerequisites it does track and does nothing. It skips the recompile, the relink, and the `objcopy`, then re-wraps the stale `.bin`. It prints `Finished building` and looks successful. Deleting the objects doesn't help while the `.elf` is present, because `make` treats the missing objects as intermediates it decides it doesn't need. This is the same class of trap as the prebuilt-`.o` one described earlier.
+Compiled image sizes differ from vendor binaries (`Edukit_firmware.bin`) due to differing compiler toolchains and optimization levels, generating binaries around 140 KB compared to the 130 KB stock image. Validate firmware integrity through runtime banner verification and functional mode validation.
 
-Force each step by hand instead. The exact compile flags are in `Example/User/subdir.mk`, and the `-I` list is relative to `Debug`. Run these from the `Debug` directory, with the toolchain first on `PATH`:
+**Header-only modifications fail to trigger automated rebuilds.** Generated build manifests classify targets as `.SECONDARY`, while `.d` dependency trees contain stale external absolute paths. Modifying configuration headers such as `IDENT_AUTOSTART_MODE` in `edukit_system.h` leaves the output target newer than recognized source prerequisites, causing `make all` to report successful completion without recompiling source files or refreshing binary images.
+
+Enforce manual compilation sequencing to ensure updated code inclusion. Extract compiler flags from `Example/User/subdir.mk` and execute compilation stages directly from the `Debug` directory:
 
 ```bash
 export PATH="$HOME/.local/arm-gnu-toolchain/bin:$PATH"
 FW=/path/to/Projects/Multi/Examples/MotionControl/IHM01A1_ExampleFor1Motor
 D=../../../../../../../../Drivers
-# 1. compile main.o explicitly, so the current header is definitely read
+# 1. compile main.o explicitly, ensuring updated headers compile into the object
 arm-none-eabi-gcc "$FW/Src/main.c" -mcpu=cortex-m4 -std=gnu11 -g3 -DUSE_HAL_DRIVER -DSTM32F401xE \
   -DUSE_STM32F4XX_NUCLEO -DNUCLEO_F401RE -DSTM32F401RETx -DSTM32 -DSTM32F4 -DDEBUG -c \
   -I../../../Inc -I"$D/BSP/STM32F4xx-Nucleo" -I"$D/BSP/X-NUCLEO-IHMxx" -I"$D/BSP/Components/Common" \
   -I"$D/BSP/Components/l6474" -I"$D/CMSIS/Include" -I"$D/CMSIS/Device/ST/STM32F4xx/Include" \
   -I"$D/STM32F4xx_HAL_Driver/Inc" -O0 -ffunction-sections -Wall -fstack-usage \
   -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -o Example/User/main.o
-# 2. delete the ELF so make must relink, then relink
+# 2. delete the ELF binary and relink
 rm -f STM32F401RE-Nucleo.elf && make all
-# 3. objcopy the.bin yourself; make's own.bin step is stale for the same reason
+# 3. generate the raw binary image via objcopy
 arm-none-eabi-objcopy -O binary STM32F401RE-Nucleo.elf STM32F401RE-Nucleo.bin
 ```
 
-Selecting a probe is a compile-time choice: set `IDENT_AUTOSTART_MODE` to the mode letter and run those three steps, once per probe. The project stages one image per probe in `build/firmware/`. The images are `edukit-ident-sweep.bin`, `-pump`, `-lean`, and `-trace`, declared as targets in `config/firmware.yaml`. Always confirm with `md5` that two different-mode builds actually differ rather than trusting `make`. An identical hash means it served a stale image.
+Setting `IDENT_AUTOSTART_MODE` configures dedicated measurement probes at compile time. The build pipeline stages target images in `build/firmware/`, including `edukit-ident-sweep.bin`, `-pump`, `-lean`, and `-trace`, as registered in `config/firmware.yaml`. Validate binary uniqueness using `md5` to confirm changes compiled into discrete binary payloads.
 
 ## Identification battery
 
-The `ident` target adds the closed-loop identification modes `d`, `a`, and `u` on top of the `bench` modifications. Experiment 03 draws on them to reconcile the simulation against the unit at the amplitudes swing-up uses. The changes are in the 500 Hz logging path:
+Target `ident` introduces closed-loop identification routines `d`, `a`, and `u` alongside foundational `bench` enhancements. [Experiment 03](../experiments/03-hardware-bringup/writeup.md) utilizes these identification routines to calibrate simulation physics against hardware observations at swing-up amplitudes. Key modifications enhance the 500 Hz telemetry pipeline:
 
-- The firmware takes the per-line timestamp **before** the loop's cycle-counter wait, not after, so the interval between lines carries the loop jitter instead of the wait absorbing it, the one thing the earlier 500 Hz rate confirmation couldn't measure. A modulo sequence counter is the first column of every identification line, so the host detects a dropped sample as a sequence gap rather than relying on a fixed interval.
-- Lines stay inside the 46-byte-per-2-ms serial budget at 230400 baud. The columns per mode are `seq us counts phi_steps [state|acc]`, tab-separated, where `counts` is the pendulum encoder and `phi_steps` the dead-reckoned rotor position. The last column depends on the mode. For `d` it's the drive state, either `P` for pump or `H` for hold. For `u` it's the swing-up or balance state `D` or `B`. For `a` it's the commanded profile acceleration.
+- Firmware samples timestamps **prior** to the cycle-counter delay loop, ensuring interval telemetry reflects execution jitter rather than delay compensation. A modulo sequence index occupies column one in telemetry streams, allowing host tooling to recognize packet loss directly.
+- Telemetry lines respect serial throughput constraints, transmitting 46 bytes per 2 ms across a 230400 baud link. Output formats follow `seq us counts phi_steps [state|acc]` tab-delimited structures, where `counts` represents the optical encoder angle and `phi_steps` provides dead-reckoned rotor positions. The final column indicates drive states, P for pump or H for hold in mode `d`, swing-up phases, D or B in mode `u`, or acceleration commands in mode `a`.
 
-The amplitude list, probe divisor, min-command ladder divisors, and repeat counts are `#define`s in `edukit_system.h` under the `IDENT_` prefix. `IDENT_CAPTURE_RUNS` sets how many times each mode repeats its measurement in one capture, ten by default. The pump reuses the stock swing-up's kick, so the battery leans on the third-party swing-up in the supplied firmware. The derived image is git-ignored because that source carries no LICENSE file.
+Excitation parameters, probe divisors, and repetition thresholds reside in `edukit_system.h` under the `IDENT_` namespace. Constant `IDENT_CAPTURE_RUNS` designates repetitions per session, with ten as default. Swing-up pump logic adapts baseline excitation impulses from stock firmware assets.
 
-**Mode selection happens at compile time.** Entering a mode through the boot menu was never reliable. The menu arrives in USB fragments, and the firmware acts only on exactly two bytes: one character and one carriage return. The window is five seconds before the board starts a default that drives the motor. Entering the menu once took nine attempts. The identification build sidesteps it entirely with `IDENT_AUTOSTART_MODE` in `edukit_system.h`. Set that to one of the mode letters `w` `y` `d` `a` `u`, and the firmware boots straight into that mode with no menu and no window. Selecting a mode is then a flash, and `st-flash` verifies it. A missed capture can't fall through to the motor, because there is no default to fall through to. Set it to `0` to restore the interactive menu. Each mode costs one flash, and capture then needs only an open port.
+**Automating mode execution via compile-time constants.** Selecting runtime modes via serial boot menus presents reliability challenges due to USB packet segmentation and rigid timing tolerances. Defining `IDENT_AUTOSTART_MODE` in `edukit_system.h` to mode characters `w`, `y`, `d`, `a`, or `u` commands immediate execution upon boot, eliminating menu timeouts, and preventing unintended motor operation. Setting the macro to `0` restores standard interactive menus.
 
-The host side pairs with this through `scripts/capture_trace.py`. It recognises a board already streaming samples and starts recording without answering a prompt. The serial port is the ST-LINK's virtual COM port, a separate USB interface from the target, so it survives a reset and the mode's output arrives on a link already open.
+Host acquisition script `scripts/capture_trace.py` detects active telemetry streams automatically without transmitting interactive prompt responses. Telemetry streams route through the virtual COM port on the ST-LINK interface, maintaining persistent connection status across target resets.
 
-The bench sessions run in a fixed order, each measurement feeding the next. The tilt sweep comes first, and its map is the step-loss reference the others read against. The ring-down follows, and its over-the-top segment also reads the encoder scale, so the battery needs no separate counts-per-revolution turn. Then the probe-lean unit probe and min-command ladder, supervised because they drive the motor. The golden trace comes last, also supervised. The sweep's full turn showed the cable coils without binding, which replaces the hand measurement of the travel limit. The reasoning is in experiment 03. The repository git-ignores every image built from that source, so rebuilding is the only route to one. The swing-up retune is two constants in `edukit_system.h`, `STAGE_1_AMP` from 130 to 200 and `STAGE_2_AMP` from 120 to 160, and experiment 03 has the reasoning. The `bench` target carries more than that, adding modes `w` and `y`, per-impulse reporting, and the build banner below.
+Bench characterization follows an ordered sequence where successive calibrations inform downstream identification. Rotor tilt sweeps precede dynamic identification, providing baseline step-loss reference points. Free ring-down passes calibrate damping dissipation curves while verifying encoder counts across 360-degree rotations. Actuator characterization probes low-speed deadbands and acceleration limits under active supervision. Golden trace collection completes the battery, recording benchmark trajectories for simulation matching.
 
 ## Identifying the running build
 
-Builds from this project print their identity before the mode prompt. Run `just hw-monitor` and press reset:
+Project firmware builds output version metadata prior to boot prompts. Execute `just hw-monitor` and trigger hardware reset:
 
 ```text
 BUILD ident (retuned swing-up; modes w y d a u; identification battery)
 ```
 
-The build id is a target key in `config/firmware.yaml`, set by `FIRMWARE_BUILD` in `edukit_system.h`, with `FIRMWARE_BUILD_NOTE` supplying the parenthetical. Change both whenever behavior changes, and record it here. The earlier `bench` build carried only modes `w` and `y`. `ident` adds `d`, `a`, `u`, and the pre-wait timestamp. The supplied ST and UCLA image prints no such line. `hw-flash` identifies it by flash read-back.
+Build identifiers correspond to target declarations in `config/firmware.yaml`, defined via `FIRMWARE_BUILD` and `FIRMWARE_BUILD_NOTE` macros in `edukit_system.h`. Update these constants alongside firmware modifications to preserve build traceability.
