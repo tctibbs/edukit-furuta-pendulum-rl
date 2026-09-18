@@ -6,34 +6,34 @@ Per [Milestone 01](../../milestones/M1-isaac-lab-bringup.md), the goal is to get
 
 ## Setup
 
-Building the training host followed [Training host setup](../../runbooks/training-host-setup.md). Commands that run there assume the working directory is the IsaacLab folder it creates. Not all of the commands run there, though. The plotting script regenerates the learning-curve figure locally, from the experiment folder, and the workstation opens the SSH tunnel for watching a run live.
+Training host setup followed [Training host setup](../../runbooks/training-host-setup.md), executing remote commands from the provisioned IsaacLab folder. The workstation manages SSH tunneling for live monitoring, while local plotting scripts regenerate the learning-curve figure from the experiment folder.
 
 ## The work
 
 ### Driving the training host over SSH
 
-The original plan was to train on a home Linux server, but its GPU lacked the hardware ray-tracing cores Isaac Sim requires, ruling it out regardless of the driver or the memory. Architecture Decision Record (ADR) [ADR-0002](../../adrs/0002-training-host.md) has the full story. A Windows machine with a newer GPU was the fallback, reachable only over SSH.
+Initial hardware planning centered on a local Linux server. However, the installed GPU lacked the dedicated hardware ray-tracing cores mandatory for Isaac Sim, disqualifying the machine despite adequate driver versions and system memory. Architecture Decision Record [ADR-0002](../../adrs/0002-training-host.md) documents the architectural context in detail. A Windows machine housing an RTX 5080 served as the primary fallback, accessible exclusively over SSH.
 
-The test for the SSH connection was whether the simulation, driven over it, printed `Using device: cuda:0` and claimed GPU memory.
+Remote connectivity verification centered on confirming headless initialization of the Direct3D 12 graphics device, GPU memory allocation, and logging of `Using device: cuda:0`:
 
 ```powershell
 ..\.venv\Scripts\python.exe scripts\tutorials\00_sim\create_empty.py --headless
 ```
 
-Running it confirmed Isaac Sim creates a D3D12 device and runs physics on `cuda:0`.
+Execution confirmed successful Direct3D 12 device initialization and active physics computation on `cuda:0`.
 
 ### Training the stock cartpole end to end
 
-The end-to-end test runs Isaac Lab's built-in Cartpole task, the closest match to the Furuta pendulum project and one that comes with a working configuration.
+End-to-end testing exercised Isaac Lab's built-in Cartpole task (`Isaac-Cartpole-Direct-v0`), the closest baseline to the rotary inverted pendulum and an environment pre-equipped with known-good hyperparameters.
 
-Training ran for 50 iterations at 4096 environments. [config.yaml](./config.yaml) has the full configuration.
+Training executed across 50 iterations with 4096 parallel environments. Full configuration settings reside in [config.yaml](./config.yaml).
 
 ```powershell
 # command to run the stock cartpole training
 ..\.venv\Scripts\python.exe scripts\reinforcement_learning\rsl_rl\train.py --task=Isaac-Cartpole-Direct-v0 --headless --max_iterations 50
 ```
 
-TensorBoard on the local workstation showed training in progress, following [Training host setup](../../runbooks/training-host-setup.md#watch-a-run-from-the-workstation).
+TensorBoard on the local workstation tracked training progress via the SSH tunnel, following the procedure in [Training host setup](../../runbooks/training-host-setup.md#watch-a-run-from-the-workstation).
 
 | Metric | Value |
 |---|---|
@@ -45,23 +45,23 @@ TensorBoard on the local workstation showed training in progress, following [Tra
 | Seeds | 1, preliminary |
 | Total environment steps | 3.28 M |
 
-Reward and episode length are both still rising at iteration 49, cut off by the `--max_iterations 50` limit before either leveled off, showing the policy learned. Episode length rises with training as the cartpole balances the pole for longer.
+Mean reward and episode length climb steadily through iteration 49. Execution concluded via the `--max_iterations 50` boundary before performance plateaued, demonstrating active policy improvement. Episode length rises with training as the cartpole learns to balance the pole for longer.
 
 ![Learning curve](./figures/learning_curve.png)
 
-*Mean reward at left and mean episode length at right, per training iteration, 4096 environments, one seed. The dashed line is the 300-step episode cap.*
+*Mean reward at left and mean episode length at right, per training iteration, across 4096 environments, single seed. The dashed line marks the 300-step episode cap.*
 
 | Iteration 0 | Iteration 49 |
 |---|---|
 | ![untrained](./figures/untrained.gif) | ![trained](./figures/trained.gif) |
 
-*One full 5-second episode, 36 of the 4096 environments. Left is the checkpoint at iteration 0, right at iteration 49.*
+*Full 5-second episode rollout across 36 of the 4096 environments. Left illustrates the initial checkpoint at iteration 0. Right demonstrates stabilized balance at iteration 49.*
 
 ### Measuring throughput against environment count
 
-Running many simulations at once is the primary reason to use a GPU-based simulator, so the sweep below measures how much it helps.
+Running many simulations at once is the primary reason to use a GPU-based simulator, so the sweep below measures the scaling benefit.
 
-The sweep runs 50 iterations at 64, 512 and 4096 parallel environments, with nothing else changed between runs. Isaac Lab prints a steps-per-second figure every iteration, and the median of the last ten is the number reported.
+The sweep runs 50 iterations across 64, 512, and 4096 parallel environments, holding all other settings constant between runs. Isaac Lab prints a steps-per-second figure every iteration, and the median of the final ten iterations is the reported number.
 
 | Environments | Throughput in steps/s | Relative to 64 envs | Per environment in steps/s | Iteration time |
 |---|---|---|---|---|
@@ -69,18 +69,18 @@ The sweep runs 50 iterations at 64, 512 and 4096 parallel environments, with not
 | 512 | 28,924 | 7.9x | 56.5 | 0.27 s |
 | 4096 | 238,190 | 65.4x | 58.2 | 0.27 s |
 
-Multiplying the environment count by 64 multiplied the sample rate by 65. Per-environment throughput holds at about 57 steps/s and iteration time never moves off 0.27 seconds, so the per-iteration cost doesn't scale with batch width.
+Multiplying the environment count by 64 expanded aggregate sampling throughput by 65x. Per-environment throughput remained stable at approximately 57 to 58 steps per second, while iteration duration remained fixed at 0.27 seconds. Under these conditions, per-iteration runtime cost shows no dependence on environment batch width.
 
 ## Takeaway
 
-Isaac Lab runs and trains on the training host. The stack trains a stock cartpole to 92 percent of the episode cap in about 13 seconds on an RTX 5080, driven headless over SSH from a workstation with no GPU, with the trained and untrained rollouts recorded side by side.
+Isaac Lab operates and trains reliably on the Windows host. The software stack trains a standard cartpole model to 92 percent of the maximum episode length in approximately 13 seconds on an RTX 5080, driven headlessly over SSH from a workstation lacking dedicated GPU hardware. Side-by-side rollout recordings demonstrate rapid behavioral convergence from untrained random exploration to stable upright balance.
 
-Throughput is linear out to 4096 environments because iteration time stays at 0.27 seconds regardless of width, so at the scale this project needs the marginal cost of an environment is near zero.
+Simulation throughput scales linearly through 4096 environments because iteration duration remains pinned at 0.27 seconds regardless of batch width. At the scale required for the Furuta pendulum project, the marginal compute cost of additional parallel environments remains negligible.
 
 ## References
 
-- [ADR-0001](../../adrs/0001-simulation-environment.md), why the simulator here is Isaac Lab.
-- [ADR-0002](../../adrs/0002-training-host.md), why training runs on a separate RT-core host driven over SSH.
-- [Training host runbook](../../runbooks/training-host-setup.md), the install and the defects between the published guide and a working one.
-- [Isaac Sim system requirements](https://docs.isaacsim.omniverse.nvidia.com/latest/installation/requirements.html), the RT core rule and the stated GPU minimum.
-- [Isaac Lab pip installation](https://isaac-sim.github.io/IsaacLab/main/source/setup/installation/pip_installation.html), the published procedure this experiment corrects.
+- [ADR-0001](../../adrs/0001-simulation-environment.md), architectural evaluation justifying Isaac Lab for simulation.
+- [ADR-0002](../../adrs/0002-training-host.md), hardware requirements and architectural justification for headless remote compute over SSH.
+- [Training host runbook](../../runbooks/training-host-setup.md), host installation walkthrough and documented resolutions for upstream installation defects.
+- [Isaac Sim system requirements](https://docs.isaacsim.omniverse.nvidia.com/latest/installation/requirements.html), official ray-tracing hardware criteria and baseline GPU specifications.
+- [Isaac Lab pip installation](https://isaac-sim.github.io/IsaacLab/main/source/setup/installation/pip_installation.html), published reference procedure corrected during project provisioning.
