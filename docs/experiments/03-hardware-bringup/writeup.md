@@ -18,11 +18,11 @@ The supplied ST and UCLA image goes on the board first.
 just hw-flash
 ```
 
-The firmware swings the pendulum up from hanging and then holds it there with two cascaded PID loops, described in Manual Sec. 9, page 27. The inner loop is a PID on the pendulum angle. On its own it keeps the pendulum upright while the rotor drifts, because any rotor position satisfies it. The outer loop is a PID on the rotor angle, and its output becomes the inner loop's reference, so pulling the rotor back to where it should be means asking the pendulum to lean a little. The manual derives an alternative in Sec. 14, page 76, a Linear Quadratic Regulator. One gain matrix maps the whole measured state, both angles and both rates, to a single motor command, and the gains are chosen to minimize a weighted sum of state error and control effort. That's the classical baseline a learned policy has to beat.
+The firmware swings the pendulum up from hanging and then holds it there with two PID loops, described in Manual Sec. 12, page 58. One is a PID on the pendulum angle. On its own it keeps the pendulum upright while the rotor drifts, because any rotor position satisfies it. The other is a PID on the rotor angle. The firmware adds the two outputs into one acceleration command. The manual derives an alternative in Sec. 14, page 76, a Linear Quadratic Regulator. One gain matrix maps the whole measured state, both angles and both rates, to a single motor command, and the gains are chosen to minimize a weighted sum of state error and control effort. That's the classical baseline a learned policy has to beat.
 
 ![The supplied dual PID against the manual's regulator](./figures/control_structures.png)
 
-*Each PID loop sees one angle. The regulator sees all four states at once. Drawn from the architectures in Manual Sec. 9 and Sec. 14 by [control_structures.py](./figures/control_structures.py).*
+*Each PID loop sees one angle. The regulator sees all four states at once. Drawn from the architectures in Manual Sec. 12 and Sec. 14.*
 
 The swing-up works by energy shaping, the same trick as pushing a child on a swing: the motor can't lift the pendulum directly, so on each pass through the bottom, where the pendulum's speed peaks, it nudges the arm the way the pendulum is already going and adds a little energy. One nudge turns the arm a small amount, measured in microsteps. A microstep is the motor's smallest commandable increment, one sixteenth of a physical step. How big each nudge is comes from `stage_amp`. The firmware picks one of three values by the peak angle the last nudge reached, in the bands below.
 

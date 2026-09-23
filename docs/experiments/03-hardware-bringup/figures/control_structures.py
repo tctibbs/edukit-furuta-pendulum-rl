@@ -5,7 +5,8 @@
 """Draw the supplied dual PID controller beside the manual's LQR alternative.
 
 A drawn block diagram rather than a plot of captured data. Laid out from the
-architectures in Manual Sec. 9 and Sec. 14. The manual's own figures are not reproduced.
+architectures in Manual Sec. 12 and Sec. 14. The manual's own figures are not
+reproduced.
 
     just figures 03
 """
@@ -91,32 +92,37 @@ def label(ax, x, y, text, color=_style.MUTED, ha="center", va="bottom"):
 
 
 def draw_dual_pid(ax):
-    """Draw the supplied firmware, a rotor loop wrapped around a pendulum loop."""
-    y = 3.4
-    arrow(ax, (0.2, y), (1.18, y))
-    label(ax, 0.2, y + 0.2, "rotor command", ha="left")
-    junction(ax, 1.4, y)
-    arrow(ax, (1.62, y), (2.18, y))
-    end = block(ax, 2.2, y, 1.9, "rotor PID", _style.MODEL)
-    arrow(ax, (end, y), (end + 0.78, y))
-    label(ax, end + 0.39, y + 0.12, "lean")
-    junction(ax, end + 1.0, y)
-    arrow(ax, (end + 1.22, y), (end + 1.78, y))
-    end2 = block(ax, end + 1.8, y, 2.0, "pendulum PID", _style.MEASURED)
-    arrow(ax, (end2, y), (end2 + 0.7, y))
-    label(ax, end2 + 0.35, y + 0.12, "accel")
-    end3 = block(ax, end2 + 0.72, y, 1.9, "rotor and\npendulum")
-    arrow(ax, (end3, y), (end3 + 0.7, y))
-
-    inner_y, outer_y = 1.9, 0.9
-    for fy, back_x, tag, colour in (
-        (inner_y, end + 1.0, "pendulum angle", _style.MEASURED),
-        (outer_y, 1.4, "rotor angle", _style.MODEL),
+    """Draw the supplied firmware, a pendulum PID and a rotor PID summed."""
+    top, bottom, plant_y = 3.6, 2.3, 3.6
+    # The pendulum feedback enters the top junction from above. That branch's input
+    # label sits below its line to keep clear of the feedback arrow.
+    for y, reference, name, colour, label_y, va in (
+        (top, "upright reference", "pendulum PID", _style.MEASURED, top - 0.2, "top"),
+        (bottom, "rotor reference", "rotor PID", _style.MODEL, bottom + 0.2, "bottom"),
     ):
-        ax.plot([end3 + 0.45, end3 + 0.45], [y - 0.45, fy], color=colour, lw=1.2)
-        ax.plot([back_x, end3 + 0.45], [fy, fy], color=colour, lw=1.2)
-        arrow(ax, (back_x, fy), (back_x, y - 0.25), colour)
-        label(ax, (back_x + end3) / 2, fy + 0.1, tag, colour)
+        arrow(ax, (0.2, y), (1.18, y))
+        label(ax, 0.2, label_y, reference, ha="left", va=va)
+        junction(ax, 1.4, y)
+        arrow(ax, (1.62, y), (2.18, y))
+        block(ax, 2.2, y, 2.0, name, colour)
+    arrow(ax, (4.2, top), (5.18, top))
+    ax.plot([4.2, 5.4], [bottom, bottom], color=_style.INK, lw=1.2)
+    arrow(ax, (5.4, bottom), (5.4, top - 0.25))
+    junction(ax, 5.4, top)
+    arrow(ax, (5.62, plant_y), (6.28, plant_y))
+    label(ax, 5.95, plant_y + 0.12, "accel")
+    end = block(ax, 6.3, plant_y, 1.9, "rotor and\npendulum")
+    arrow(ax, (end, plant_y), (end + 0.7, plant_y))
+
+    tap = end + 0.45
+    for fy, into_y, tag, colour in (
+        (4.3, top + 0.25, "pendulum angle", _style.MEASURED),
+        (1.0, bottom - 0.25, "rotor angle", _style.MODEL),
+    ):
+        ax.plot([tap, tap], [plant_y, fy], color=colour, lw=1.2)
+        ax.plot([1.4, tap], [fy, fy], color=colour, lw=1.2)
+        arrow(ax, (1.4, fy), (1.4, into_y), colour)
+        label(ax, (1.4 + tap) / 2, fy + 0.1, tag, colour)
 
 
 def draw_lqr(ax):
@@ -151,15 +157,14 @@ def main() -> int:
     fig, (left, right) = plt.subplots(1, 2, figsize=(12.4, 3.6))
     for ax in (left, right):
         ax.set_xlim(0, 11.2)
-        ax.set_ylim(0.45, 4.5)
+        ax.set_ylim(0.45, 4.7)
         ax.axis("off")
 
     draw_dual_pid(left)
     _style.titled(
         left,
-        "Supplied firmware: two nested PID loops",
-        "Each loop sees one angle. The rotor loop steers by asking the "
-        "pendulum to lean.",
+        "Supplied firmware: two PID loops, summed",
+        "Each loop sees one angle. Their outputs add into one command.",
     )
     draw_lqr(right)
     _style.titled(
