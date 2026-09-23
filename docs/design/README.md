@@ -12,4 +12,7 @@ Those three record how the design came to be. This directory records what it is 
 
 ## Documents
 
+Read in this order.
+
+- [PID and LQR on this machine](pid-and-lqr.md), the two classical controllers the kit ships with and derives, and what each one can and cannot do here.
 - [Reinforcement learning environment](rl-environment.md), the contract a policy trains against: observations, action, termination, resets, and reward.
