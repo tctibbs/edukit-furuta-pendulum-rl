@@ -10,6 +10,15 @@ Training host setup followed [Training host setup](../../runbooks/training-host-
 
 ## The work
 
+Isaac Lab is NVIDIA's framework for training robots with reinforcement learning in simulation. It runs on a stack of NVIDIA and Pixar software:
+
+| Layer | What it is | Role here |
+|---|---|---|
+| Isaac Lab | NVIDIA's reinforcement learning framework | Defines the training task and runs training |
+| Isaac Sim | NVIDIA's robotics simulator, built on the Omniverse platform | Loads the model and runs the simulation |
+| PhysX | NVIDIA's physics engine | Moves the bodies and joints forward in time |
+| USD | Pixar's 3D scene format, standard across 3D tools | Describes the model: its bodies, masses and joints |
+
 ### Driving the training host over SSH
 
 Initial hardware planning centered on a local Linux server. However, the installed GPU lacked the dedicated hardware ray-tracing cores mandatory for Isaac Sim, disqualifying the machine despite adequate driver versions and system memory. Architecture Decision Record [ADR-0002](../../adrs/0002-training-host.md) documents the architectural context in detail. A Windows machine housing an RTX 5080 served as the primary fallback, accessible exclusively over SSH.

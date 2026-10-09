@@ -10,54 +10,80 @@ Training host setup followed [Training host setup](../../runbooks/training-host-
 
 ## The work
 
+### Defining the model
+
+The Furuta pendulum is a multibody system: three rigid bodies joined by two rotating joints.
+
+- Base: the stand. It is fixed in place.
+- Rotor arm: a horizontal arm that the stepper motor spins about the vertical axis `Z`.
+- Pendulum: a rod hanging from the end of the rotor arm. It swings freely about `X`, the axis along the rotor arm, so its swing plane turns with the rotor arm.
+
+![Model geometry](./figures/model_spec.png)
+
+*The three bodies and their two joint axes, with dimensions from the configuration.*
+
+PhysX can simulate a multibody system in two ways:
+
+- Maximal coordinates: each body moves on its own, and the solver pulls the joints back into place every step. The joints hold only approximately. Best for loose objects and joints that can break.
+- Reduced coordinates: PhysX arranges the bodies as a tree, called an articulation, where each body hangs off its parent through a joint. PhysX tracks only the joint angles, computes each body's position from them, and uses the body masses to work out the motion. The joints hold exactly. Best for robot arms and other jointed chains.
+
+The model uses reduced coordinates. Its joints are rigid hinges, and the joint angles are exactly what the board measures. From here on, the code and documentation call the model an articulation, following the PhysX term.
+
+The model's physical constants are set in [config.yaml](./config.yaml):
+
+| Quantity | Symbol | Value | Source |
+|---|---|---|---|
+| Arm length | `r` | 0.140 m | Manual page 11 |
+| Pendulum length | `L` | 0.258 m | Manual page 148 |
+| Pendulum mass | `m` | 0.050 kg | Assumed, cancels out |
+| Shaft inertia, normalized | `2*I_shaft/(m*L^2)` | 0.0139 | Manual page 148 |
+| Quality factor | `Q` | 20 | Manual page 150 |
+| Gravity | `g` | 9.806 m/s^2 | Manual page 148 |
+
+The physical constants above introduce two new terms:
+
+- Shaft inertia, normalized: rotational inertia is resistance to being spun up, the rotational equivalent of mass. Most of the pendulum's mass is in the rod. The shaft and other parts that turn with it add a little more inertia. The manual infers it from the measured swing frequency and gives it as a ratio to `m*L^2/2`.
+- Quality factor `Q`: how long a free swing lasts before friction in the pivot stops it. At `Q = 20`, each swing is about 15 percent smaller than the last. The model applies this as damping, a friction torque at the pendulum joint.
+
 ### Building the articulation
 
-The simulation model is an articulation, a tree of rigid bodies connected by joints that PhysX solves as a single coupled system. Generator script [`src/furuta/articulation.py`](../../../src/furuta/articulation.py) constructs the model as an asset in Universal Scene Description (USD) format. Universal Scene Description, created by Pixar and adopted as the native asset framework across NVIDIA Omniverse and Isaac Sim, provides an extensible system for defining hierarchical 3D scenes alongside physical properties and joint schemas. Generating the model programmatically as a USD asset embeds geometry, mass distributions, and drive constraints directly from configuration parameters, avoiding manual 3D modeling.
+Isaac Sim reads the articulation from a Universal Scene Description (USD) file. The file holds each body's shape and mass and the joints between them. [`src/furuta/articulation.py`](../../../src/furuta/articulation.py) generates this file from the physical constants above, using UsdPhysics, the physics extension to USD. UsdPhysics provides schemas: standard sets of physics properties that attach to entries in the scene. The script uses six:
 
-PhysX can simulate jointed assemblies in maximal or reduced coordinates. In maximal coordinates, each body has six degrees of freedom, and constraint projections pull joints together on each step. In reduced coordinates, PhysX tracks only joint angles, preventing joint separation under high accelerations. The Furuta model uses reduced coordinates.
+- `RigidBodyAPI` makes an entry a body that physics moves.
+- `MassAPI` sets a body's mass and inertia, covered in [Deriving rotational inertia](#deriving-rotational-inertia).
+- `RevoluteJoint` joins two bodies with a rotating joint.
+- `DriveAPI` drives the rotor arm's joint, covered in [Emulating the stepper motor drive](#emulating-the-stepper-motor-drive).
+- `FixedJoint` pins the base to the world.
+- `ArticulationRootAPI`, on the top-level `/Furuta` entry, marks everything below it as one articulation.
 
-The mechanical assembly comprises three bodies:
-- Base: fixed to the world frame.
-- Rotor arm: turned by the stepper motor about vertical axis `Z`.
-- Pendulum: hanging from the arm tip on a passive joint about horizontal axis `X`.
-
-The pendulum swings in a vertical plane that rotates alongside the arm.
-
-![The modeled geometry](./figures/model_spec.png)
-
-*Modeled geometry generated from parameter specifications by [model_spec.py](./figures/model_spec.py). Arm radius `r` and pendulum length `L` enter the equations of motion. Arm height provides floor clearance without altering dynamic equations. Cylinder radius provides visualization, while inertia derives from physical equations.*
-
-Configuration file [config.yaml](./config.yaml) pins the physical constants used across this experiment:
-
-| Symbol | Quantity | Value | Source |
-|---|---|---|---|
-| `L` | pendulum length | 0.258 m | Manual Appendix D, Pendulum Dynamics, page 148 |
-| `r` | arm length | 0.140 m | Manual Table 2, page 11 |
-| `m` | pendulum mass | 0.050 kg | assumed nominal |
-| `g` | gravity | 9.806 m/s^2 | nominal gravitational acceleration |
-| `2*I_shaft/(m*L^2)` | shaft inertia, normalized | 0.0139 | Manual Appendix D, Pendulum Dynamics, page 148 |
-| `Q` | quality factor of the free swing | 20 | Manual Appendix D, Pendulum Dynamics, page 150 |
-| | microsteps per revolution | 3200 | Manual page 11, as 200 full steps of 16 |
-| | encoder counts per revolution | 2400 | Manual Table 2, page 11 |
-
-Source file [`src/furuta/articulation.py`](../../../src/furuta/articulation.py) writes the bodies and joints, applying schema `PhysicsArticulationRootAPI` to the root prim. The environment reads joint angles and commands targets through runtime class `Articulation`. Anchoring the base body prevents the assembly from falling under gravity.
-
-Revolute joint definitions specify local anchor coordinates:
+The schemas come in two kinds. Joints are entries of their own, created with `Define`. The `API` schemas add properties to an existing entry, attached with `Apply`. The pendulum pivot shows both. The script creates it through a helper, linking the rotor arm to the pendulum about `X` at the arm's tip:
 
 ```python
 _revolute_joint(
-    ..., "/Furuta/base", "/Furuta/arm", "Z", (0.0, 0.0, ARM_HEIGHT_M), driven=True
+    stage,
+    "/Furuta/pendulum_joint",
+    "/Furuta/arm",
+    "/Furuta/pendulum",
+    "X",
+    (r, 0.0, 0.0),
 )
-_revolute_joint(..., "/Furuta/arm", "/Furuta/pendulum", "X", (r, 0.0, 0.0))
 ```
 
-Inspection script [`scripts/inspect_articulation.py`](../../../scripts/inspect_articulation.py) loads the USD asset headlessly to verify parsed bodies and joints before launching training environments:
+Inside the helper, `Define` creates the joint and `Apply` gives it a drive:
+
+```python
+joint = UsdPhysics.RevoluteJoint.Define(stage, path)
+...
+drive = UsdPhysics.DriveAPI.Apply(joint.GetPrim(), "angular")
+```
+
+Before any training, a separate script checks that PhysX reads the file as intended. [`scripts/inspect_articulation.py`](../../../scripts/inspect_articulation.py) loads the USD file on its own, without the training environment, and prints the bodies and joints PhysX found. `--headless` runs it without a display window:
 
 ```powershell
 ..\.venv\Scripts\python.exe scripts\inspect_articulation.py --headless
 ```
 
-### Deriving rotational inertia
+#### Deriving rotational inertia
 
 Module [`src/furuta/parameters.py`](../../../src/furuta/parameters.py) converts physical constants into rigid body tensors.
 
@@ -109,6 +135,22 @@ Running asset generation confirms that authored USD properties match the derivat
 ..\.venv\Scripts\python.exe scripts\generate_articulation.py --output assets\edukit_pendulum.usda
 ```
 
+#### Verifying parametric generation
+
+A verification test changed `pendulum_length_m` from 0.258 m to 0.300 m in a copy of `config/edukit.yaml` and reran asset generation without modifying source code:
+
+```powershell
+..\.venv\Scripts\python.exe scripts\generate_articulation.py --config C:\path\to\copy.yaml --output variant.usda
+```
+
+| Quantity | Predicted | Measured |
+|---|---|---|
+| Inertia scaling ratio | 1.35208, from `(0.300/0.258)^2` | 1.35208 |
+| Natural frequency `omega_g^2` | 48.028 rad^2/s^2, from `55.847 x 0.258/0.300` | 48.029 rad^2/s^2 |
+| Center of mass | -0.150 m, from `-L/2` | -0.150 m |
+
+The output confirms that USD assets generate parametrically from configuration files rather than hardcoded geometries.
+
 ### Emulating the stepper motor drive
 
 Environment class [`src/furuta/env.py`](../../../src/furuta/env.py) implements the DirectRLEnv workflow under registration key `Furuta-Balance-Direct-v0`. The cartpole template from [Experiment 01](../01-cartpole-bringup/writeup.md) applies joint effort directly:
@@ -129,6 +171,8 @@ self.robot.set_joint_position_target(
 
 The actuator integrates once per 500 Hz control step, equal to 2 ms, while physics advances across two 1000 Hz substeps with decimation factor 2.
 
+Two hardware resolutions set the quantization below, both from Manual page 11. The stepper takes 3200 microsteps per revolution, 200 full steps of 16 microsteps each. The encoder reads 2400 counts per revolution.
+
 ![Actuator and observation pipeline](./figures/actuator_pipeline.png)
 
 *Actuator and observation pipeline. The upper path scales actions to acceleration limits, integrates stepping velocity, accumulates position setpoints at 500 Hz, quantizes setpoints to 1/3200 microstep increments, and applies targets to the PhysX joint drive. The lower path quantizes pendulum angles to 2400 encoder counts and forwards open-loop stepper steps into the observation vector.*
@@ -139,7 +183,7 @@ Observations reflect hardware sensing constraints:
 
 The reward evaluates pendulum height, +1 upright and -1 hanging. Episodes end after 10 seconds or when the rotor exceeds pi radians of travel.
 
-### Resolving rotor tracking error
+#### Resolving rotor tracking error
 
 Physical stepper motors hold commanded angles rigidly. Matching that holding stiffness required diagnosing drive tracking errors across three iterations:
 
@@ -206,22 +250,6 @@ Plotting script [`figures/plot_results.py`](./figures/plot_results.py) reads [`r
 uv run --with matplotlib python figures/plot_results.py
 ```
 
-### Verifying parametric asset generation
-
-A verification test changed `pendulum_length_m` from 0.258 m to 0.300 m in a copy of `config/edukit.yaml` and reran asset generation without modifying source code:
-
-```powershell
-..\.venv\Scripts\python.exe scripts\generate_articulation.py --config C:\path\to\copy.yaml --output variant.usda
-```
-
-| Quantity | Predicted | Measured |
-|---|---|---|
-| Inertia scaling ratio | 1.35208, from `(0.300/0.258)^2` | 1.35208 |
-| Natural frequency `omega_g^2` | 48.028 rad^2/s^2, from `55.847 x 0.258/0.300` | 48.029 rad^2/s^2 |
-| Center of mass | -0.150 m, from `-L/2` | -0.150 m |
-
-The output confirms that USD assets generate parametrically from configuration files rather than hardcoded geometries.
-
 ## Takeaway
 
 The simulation environment fulfills [Milestone 02](../../milestones/M2-furuta-model.md) acceptance criteria:
@@ -236,4 +264,4 @@ The simulation environment fulfills [Milestone 02](../../milestones/M2-furuta-mo
 - [Experiment 01](../01-cartpole-bringup/writeup.md): toolchain validation and baseline cartpole throughput comparisons.
 - [Training host setup](../../runbooks/training-host-setup.md): remote workstation installation and environment configuration.
 - [Edukit system parameters (`config/edukit.yaml`)](../../../config/edukit.yaml): mechanical constants and parameter provenance.
-- Edukit manual reference: documentation by STMicroelectronics and Professor William J. Kaiser, UCLA, accessible in `docs/reference/Edukit_Manual.pdf` via `scripts/fetch_reference_docs.sh`. Appendix D, Pendulum Dynamics page 148 for `L` and normalized shaft inertia. Table 2 page 11 for `r`, rotor gain, and encoder resolution. Appendix E page 160 for `apply_acceleration()`.
+- Edukit manual reference: documentation by STMicroelectronics and Professor William J. Kaiser, UCLA, accessible in `docs/reference/Edukit_Manual.pdf` via `scripts/fetch_reference_docs.sh`. Appendix D, Pendulum Dynamics page 148 for `L` and normalized shaft inertia, and page 150 for `Q`. Table 2 page 11 for `r`, rotor gain, and encoder resolution, and the same page for microsteps per revolution. Appendix E page 160 for `apply_acceleration()`.
