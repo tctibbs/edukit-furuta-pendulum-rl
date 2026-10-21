@@ -1,0 +1,62 @@
+# Experiment 07 pinned configuration, as of 2026-09-25. This file is the record for the
+# image and the runs logbook.md reports and is never regenerated from the live repo config.
+# The carousel's entries are in config/showcase.yaml. Every tame run is Experiment 06's
+# corrected-plant swing-up configuration unless its rung says otherwise.
+
+firmware:
+  mode: x                                  # IDENT_AUTOSTART_MODE in edukit_system.h
+  build: just fw-showcase                  # writes build/firmware/edukit-showcase.bin
+  text_bytes: 195204                       # arm-none-eabi-size, 2026-10-04
+  data_bytes: 2192
+  bss_bytes: 60368
+  entries: 13
+  groups: 5
+  policies: 8
+  menu_volume_percent: 3                   # buzzer carrier duty between attempts, set on the bench 2026-09-13
+  run_volume_percent: 20                   # during an attempt; at 3 the stepper drowns the catch chime
+  display: SSD1306 128x64 OLED on I2C1 at 400 kHz, SCL on PB8 (D15), SDA on PB9 (D14), 3.3 V, optional
+  buzzer: passive module on PA0 (A0), 3.3 V, TIM5 carrier at 25 kHz modulated by TIM11 at the note frequency, optional
+
+lqr:  # the kit's full-state feedback with integral action, Edukit Manual Section 14, page 84
+  k_theta: 191.92
+  k_theta_dot: 25.07
+  k_phi: 2.69
+  k_phi_dot: 3.12
+  k_i: 1.00
+  feedforward: 1.0                         # the kit's default; the manual gives none
+  switched_in: first control cycle after the handover from the kit's swing-up
+
+tame_recipe:  # two stages per seed, scripts/host/drive_tame07r8.ps1
+  init_from: Experiment 06's r7-smooth checkpoint of the same seed, actor, critic, exploration std, and optimizer (--init-from)
+  common: --task Furuta-SwingUp-Direct-v0 --num-envs 1024 --physics-hz 4000 --accel-bound 60 --rotor-travel-deadband 0.5 --pendulum-rate-weight -0.0096 --gamma 0.999 --episode-length-s 10 --episode-jitter 0.2 --no-value-clip
+  stage_1_tame_f: --max-rotor-rad 3.1416 --travel-weight -5.0 --rotor-rate-weight -0.1 --action-rate-weight -1.0 --max-iterations 400
+  stage_2_tame_k: --max-rotor-rad 1.5 --travel-weight -10.0 --rotor-rate-weight -0.4 --action-rate-weight -1.0 --max-iterations 300
+  experiment_06_charges: {travel: -0.5, deadband_rad: 0.5, rotor_rate: -0.01, action_rate: -0.5}
+
+benchmark:  # scripts/evaluate_swingup.py per seed; rows in simulation/benchmark.csv
+  flags: --physics-hz 4000 --accel-bound 60 --num-envs 256 --seed <seed>   # tame-c adds --max-rotor-rad 1.6
+  episodes: 256
+  episode_length_s: 30.0
+  starts: hanging within 0.4 rad and 1 rad/s
+  success: inside 3 degrees for the last 5 s with no travel termination, arm bounded at pi
+  success_rate_min: 0.95                   # per seed; mean over seeds at least 0.97
+  swingup_s_p90_max: 6.0
+  peak_rotor_rad_max: 1.50
+  peak_rotor_rate_rad_s_max: 8.0
+  terminated_rate_max: 0.0
+  peak_statistic: the maximum over the 256 episodes; one start sets the verdict
+
+jethro:  # primary mode 5
+  checkpoint: checkpoints/tame_i_seed3_model_299.pt   # MD5 78d6f9985477b2ca325e5226fbb90371
+  rung: tame-i, seed 3, 300 iterations from tame-f seed 3 at --max-rotor-rad 1.5 --travel-weight -5.0 --rotor-rate-weight -0.4 --action-rate-weight -1.0
+  benchmark_row: {success_rate: 1.000, swingup_s_median: 2.97, swingup_s_p90: 3.38, peak_rotor_rad: 1.15, peak_rotor_rate_rad_s: 8.17}   # misses the 8.0 rad/s target
+  accel_bound_rad_s2: 60
+  squash_actions: true
+  fall_persist_cycles: 1500                # 3 s past 30 degrees ends the attempt
+
+bench_2026_09_13:  # one unit, one evening, hardware/showcase_20260913*.tsv
+  image: an earlier mode x build of 13 entries (PID, STOCK, three hardware-test placeholders, the eight learned entries); no LQR and no runnable hardware tests
+  unit: the assembled Edukit with the OLED and buzzer wired, motor supply connected
+  stand: found tilted and leveled part-way through the session
+  ambient: not recorded
+  note: every hardware number is a single sample from one unit

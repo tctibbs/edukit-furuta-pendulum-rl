@@ -25,7 +25,6 @@ vale-sync:
 prose:
     vale docs/ README.md
 
-
 # Format and autofix with Ruff
 [group('dev')]
 format:
@@ -52,10 +51,22 @@ hw-targets:
 board-export CHECKPOINT BOUND:
     uv run scripts/export_policy.py {{ CHECKPOINT }} {{ BOUND }}
 
-# Prove the board's policy and observer match the simulation, on the host compiler
+# Check the board code against the simulation and the bring-up captures, and the showcase table against its config
 [group('board')]
 board-test:
-    uv run --with pytest --with torch --with pyyaml pytest tests/test_board.py -q
+    uv run --with torch --with pyyaml --with numpy python scripts/export_showcase.py --check
+    uv run --with pytest --with torch --with pyyaml pytest tests/test_board.py tests/test_showcase.py tests/test_probe.py tests/test_firmware_prefix.py -q
+
+# Build a firmware image that boots straight into one mode
+[group('firmware')]
+fw-build MODE OUT:
+    scripts/build_firmware.sh {{ MODE }} {{ OUT }}
+
+# Build the showcase carousel image from config/showcase.yaml
+[group('firmware')]
+fw-showcase:
+    uv run --with torch --with pyyaml --with numpy python scripts/export_showcase.py
+    scripts/build_firmware.sh x build/firmware/edukit-showcase.bin
 
 # Flash a firmware target, skipping the write if the board already has it
 [group('hardware')]
@@ -75,39 +86,44 @@ hw-latency MODE="1":
 # Capture a free-swing ring-down for the suspended mode and Q
 [group('hardware')]
 hw-probe-freeswing SECONDS="180":
-    uv run --with pyserial python -u scripts/capture_trace.py --mode w --seconds {{ SECONDS }}
+    uv run --with pyserial python -u scripts/capture_trace.py --mode w --seconds {{ SECONDS }} --auto-reset
 
 # Map baseplate tilt from the resting angle around a full turn
 [group('hardware')]
 hw-probe-sweep SECONDS="250":
-    uv run --with pyserial python -u scripts/capture_trace.py --mode y --seconds {{ SECONDS }}
+    uv run --with pyserial python -u scripts/capture_trace.py --mode y --seconds {{ SECONDS }} --auto-reset
 
 # Measure dissipation across swing amplitude
 [group('hardware')]
 hw-probe-pump SECONDS="420":
-    uv run --with pyserial python -u scripts/capture_trace.py --mode d --seconds {{ SECONDS }}
+    uv run --with pyserial python -u scripts/capture_trace.py --mode d --seconds {{ SECONDS }} --auto-reset
 
 # Resolve the actuator's command units and authority. Drives the arm
 [group('hardware')]
 hw-probe-lean SECONDS="200":
-    uv run --with pyserial python -u scripts/capture_trace.py --mode a --seconds {{ SECONDS }}
+    uv run --with pyserial python -u scripts/capture_trace.py --mode a --seconds {{ SECONDS }} --auto-reset
 
 # Capture the reference swing-up and balance trace. Drives the arm
 [group('hardware')]
 hw-probe-trace SECONDS="220":
-    uv run --with pyserial python -u scripts/capture_trace.py --mode u --seconds {{ SECONDS }}
+    uv run --with pyserial python -u scripts/capture_trace.py --mode u --seconds {{ SECONDS }} --auto-reset
 
 # Run the RL balance test: the stock swing-up, then the exported policy holds. Drives the arm; see the firmware runbook
 [group('hardware')]
 hw-rl-balance SECONDS="110":
-    uv run --with pyserial python -u scripts/capture_trace.py --mode b --seconds {{ SECONDS }}
+    uv run --with pyserial python -u scripts/capture_trace.py --mode b --seconds {{ SECONDS }} --auto-reset
 
 # Run the RL swing-up test: the exported policy swings up from rest and holds. Drives the arm; see the firmware runbook
 [group('hardware')]
 hw-rl-swingup SECONDS="110":
-    uv run --with pyserial python -u scripts/capture_trace.py --mode r --seconds {{ SECONDS }}
+    uv run --with pyserial python -u scripts/capture_trace.py --mode r --seconds {{ SECONDS }} --auto-reset
 
-# Fit a free-swing capture and redraw experiment 03's figures
+# Capture the showcase carousel's serial log. Drives the arm; see the firmware runbook
+[group('hardware')]
+hw-showcase SECONDS="600":
+    uv run --with pyserial python -u scripts/capture_trace.py --mode x --seconds {{ SECONDS }} --auto-reset
+
+# Fit a free-swing capture and redraw Experiment 03's figures
 [group('hardware')]
 freeswing-fit TRACE="" FLAGS="":
     uv run docs/experiments/03-hardware-bringup/figures/analyze_freeswing.py {{ TRACE }} {{ FLAGS }}

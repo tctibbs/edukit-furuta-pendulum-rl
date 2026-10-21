@@ -11,4 +11,4 @@ Take one instrumented physical system from documented design inputs to a GPU-tra
 | [Milestone 04](M4-model-reconciliation.md) | Refit the simulation | Done |
 | [Milestone 05](M5-balance.md) | Balance | Done |
 | [Milestone 06](M6-swing-up.md) | Swing-up | Done |
-| [Milestone 07](M7-wrap-up.md) | Wrap-up |  |
+| [Milestone 07](M7-wrap-up.md) | Wrap-up | Done |

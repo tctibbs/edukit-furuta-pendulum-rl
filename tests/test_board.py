@@ -9,7 +9,8 @@ forward for the policy, and `furuta.estimator.VelocitySlopeEstimator` plus the
 arithmetic of `FurutaEnv._get_observations` for the observer, with the constants read
 from `config/edukit.yaml` as the simulation reads them.
 
-The compiler is the system clang. Nothing here touches the firmware toolchain.
+The compiler is the host's (tests/conftest.py). Nothing here touches the firmware
+toolchain.
 """
 
 from __future__ import annotations
@@ -18,6 +19,7 @@ import ast
 import json
 import math
 import subprocess
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -30,7 +32,6 @@ pytestmark = pytest.mark.unit
 
 ROOT = Path(__file__).resolve().parents[1]
 BOARD = ROOT / "board"
-CLANG = Path("/usr/bin/clang")
 SOURCES = [BOARD / name for name in ("policy.c", "observer.c", "test_board.c")]
 
 # The simulation's constants, from the file the simulation reads them from, so the
@@ -87,31 +88,9 @@ OBS_TOLERANCES = (1e-5, 1e-5, 2e-4, 1e-5, 2e-4)
 
 
 @pytest.fixture(scope="module")
-def harness(tmp_path_factory: pytest.TempPathFactory) -> Path:
-    """The host harness, built with the flags `board/README.md` quotes."""
-    if not CLANG.exists():
-        pytest.skip(f"{CLANG} is not present, and the board harness needs a C compiler")
-    exe = tmp_path_factory.mktemp("board") / "test_board"
-    build = subprocess.run(
-        [
-            str(CLANG),
-            "-std=c99",
-            "-O2",
-            "-Wall",
-            "-Wextra",
-            "-Werror",
-            *(str(source) for source in SOURCES),
-            "-lm",
-            "-o",
-            str(exe),
-        ],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if build.returncode != 0:
-        pytest.fail(f"the board harness did not compile:\n{build.stderr}")
-    return exe
+def harness(build_harness: Callable[..., Path]) -> Path:
+    """The host harness, built with the board code's warning flags."""
+    return build_harness("test_board", SOURCES)
 
 
 @pytest.fixture(scope="module")

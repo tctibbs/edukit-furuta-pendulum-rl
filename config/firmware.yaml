@@ -115,3 +115,10 @@ targets:
     description: Autostart 'r' at 60 rad/s^2, swingup_r7_smooth_seed2, the RL swing-up policy from rest with the arm returned to its start after each attempt. Drives the arm fast; run supervised
     build_id: rl
     banner: System Starting Prepare to Enter Mode Selection
+
+  # The showcase carousel, mode x. Rebuild it with `just fw-showcase`.
+  showcase:
+    path: build/firmware/edukit-showcase.bin
+    description: Autostart 'x', the showcase carousel on the blue button. Drives the arm; run supervised
+    build_id: showcase
+    banner: System Starting Prepare to Enter Mode Selection

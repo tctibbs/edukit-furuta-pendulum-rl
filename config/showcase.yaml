@@ -1,0 +1,132 @@
+# The showcase carousel (firmware mode x), in the order the blue button walks it.
+#
+# `scripts/export_showcase.py` reads this and writes `board/showcase_table.c` and one
+# header and vector file per policy under `board/policies/`. The firmware boots on the
+# last group's main entry; a tap moves to the next main entry, and a hold dives into its
+# history or swaps it with its variant.
+#
+#   title                at most 10 characters, drawn large on the OLED; at most 7 for a
+#                        main entry with a variant and for the variant, so the armed
+#                        screen's "tap next" and "hold <other title>" share a line
+#   group                the main mode it belongs to, numbered from 1 in order
+#   main                 true for the entry a tap lands on, listed first in its group; the
+#                        rest of the group follows it
+#   variant              true for a sibling of the group's main entry that a hold swaps to in
+#                        place, listed right after it; a group has a variant or history, never both
+#   kind                 stock (the kit's swing-up and controller),
+#                        stock_lqr (the kit's swing-up, then the kit's state feedback with the
+#                        Edukit Manual's Sec. 14 inverted-mode gains, board/showcase.h),
+#                        rl_balance (the kit's swing-up, then the policy),
+#                        rl_from_rest (the policy from a hanging pendulum) or
+#                        probe (a hardware test that reports one measured number, grouped
+#                        only with other tests)
+#   probe                for a probe: ringdown (Q_eff at the release amplitude),
+#                        freeswing (the suspended-mode frequency) or tilt (the base tilt)
+#   policy               the C name the policy is exported under
+#   checkpoint           the rsl_rl checkpoint, relative to the repository root
+#   accel_bound          rad/s^2, the bound the checkpoint trained with
+#   squash_actions       whether its task mapped the action through tanh
+#   fall_persist_cycles  2 ms cycles past 30 degrees before a learned policy's attempt stops as a fall
+
+entries:
+  - title: PID
+    group: 1
+    main: true
+    kind: stock
+
+  - title: LQR
+    group: 1
+    variant: true
+    kind: stock_lqr
+
+  - title: RING-DOWN
+    group: 2
+    main: true
+    kind: probe
+    probe: ringdown
+
+  - title: FREE SWING
+    group: 2
+    kind: probe
+    probe: freeswing
+
+  - title: TILT SWEEP
+    group: 2
+    kind: probe
+    probe: tilt
+
+  - title: BALANCE
+    group: 3
+    main: true
+    kind: rl_balance
+    policy: momentum_a60d_seed1
+    checkpoint: docs/experiments/05-balance/checkpoints/momentum_a60d_seed1_model_299.pt
+    accel_bound: 60
+    squash_actions: false
+    fall_persist_cycles: 0
+
+  - title: 1ST CATCH
+    group: 3
+    kind: rl_balance
+    policy: momentum_a40_seed1
+    checkpoint: docs/experiments/05-balance/checkpoints/momentum_a40_seed1_model_299.pt
+    accel_bound: 40
+    squash_actions: false
+    fall_persist_cycles: 0
+
+  - title: WANDERING
+    group: 3
+    kind: rl_balance
+    policy: momentum_a60_seed1
+    checkpoint: docs/experiments/05-balance/checkpoints/momentum_a60_seed1_model_299.pt
+    accel_bound: 60
+    squash_actions: false
+    fall_persist_cycles: 0
+
+  - title: SHAKY HOLD
+    group: 3
+    kind: rl_balance
+    policy: momentum_a60c_seed1
+    checkpoint: docs/experiments/05-balance/checkpoints/momentum_a60c_seed1_model_299.pt
+    accel_bound: 60
+    squash_actions: false
+    fall_persist_cycles: 0
+
+  - title: SWING-UP
+    group: 4
+    main: true
+    kind: rl_from_rest
+    policy: swingup_r7_smooth_seed2
+    checkpoint: docs/experiments/06-swing-up/checkpoints/swingup_r7_smooth_seed2_model_599.pt
+    accel_bound: 60
+    squash_actions: true
+    fall_persist_cycles: 1500
+
+  - title: NEAR MISS
+    group: 4
+    kind: rl_from_rest
+    policy: swingup_r3_clock_seed1
+    checkpoint: docs/experiments/06-swing-up/checkpoints/swingup_r3_clock_seed1_model_599.pt
+    accel_bound: 60
+    squash_actions: true
+    fall_persist_cycles: 1500
+
+  - title: FIRST HOLD
+    group: 4
+    kind: rl_from_rest
+    policy: swingup_r6_armspeed_seed1
+    checkpoint: docs/experiments/06-swing-up/checkpoints/swingup_r6_armspeed_seed1_model_599.pt
+    accel_bound: 60
+    squash_actions: true
+    fall_persist_cycles: 1500
+
+  # tame-i seed 3; docs/experiments/07-showcase/checkpoints/README.md has its benchmark row.
+  - title: JETHRO
+    group: 5
+    main: true
+    kind: rl_from_rest
+    policy: tame_i_seed3
+    checkpoint: docs/experiments/07-showcase/checkpoints/tame_i_seed3_model_299.pt
+    accel_bound: 60
+    squash_actions: true
+    fall_persist_cycles: 1500

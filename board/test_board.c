@@ -11,7 +11,7 @@
  * Every number is printed with %.9g, which round-trips a float exactly. Blank lines are
  * skipped; anything else that does not parse is an error. Build:
  *
- *   /usr/bin/clang -std=c99 -O2 -Wall -Wextra -Werror \
+ *   cc -std=c99 -O2 -ffp-contract=off -Wall -Wextra -Werror \
  *       board/policy.c board/observer.c board/test_board.c -lm
  *
  * tests/test_board.py builds and drives it.

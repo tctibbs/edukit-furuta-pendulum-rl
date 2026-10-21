@@ -9,129 +9,60 @@ X (the arm's own axis), and a link of length L. The view is axonometric from the
 right, so the arm comes toward the reader and the pendulum's swing plane opens up. A
 side view cannot show that swing, because the pendulum swings in and out of the page.
 
-Colour carries one meaning each. Orange marks the two degrees of freedom: the joint
-axes, the angles phi and theta, and the swing plane. Ink marks what the equations of
-motion use. Faint grey marks what they do not: the stand and its height.
+Colour carries one meaning each, set in `_style.py`. Orange marks the two degrees of
+freedom: the joint axes, the angles phi and theta, and the swing plane. Ink marks what
+the equations of motion use. Faint grey marks what they do not: the stand and its
+height.
 
-Lengths come from this experiment's `config.yaml`. Arm height is a constant in
-`src/furuta/articulation.py`. That module imports `pxr` from Isaac Sim and will not
-import here. Its constant is read with `ast`.
+Lengths come from this experiment's `config.yaml`, and the arm height from
+`src/furuta/articulation.py`, both through `_parameters.py`.
 """
 
-import ast
 import sys
 from pathlib import Path
 
-import matplotlib as mpl
 import matplotlib.patheffects as pe
 import matplotlib.pyplot as plt
 import numpy as np
-import yaml
 from matplotlib.patches import Circle, FancyArrowPatch, Polygon, Wedge
 from matplotlib.transforms import Bbox
 
 plt.switch_backend("Agg")
 
 HERE = Path(__file__).parent
-ROOT = HERE.parents[3]
-
-
-def _module_constant(path: Path, name: str) -> float:
-    """Read a literal module-level constant without importing the module."""
-    tree = ast.parse(path.read_text())
-    for node in tree.body:
-        if isinstance(node, ast.Assign):
-            for target in node.targets:
-                if isinstance(target, ast.Name) and target.id == name:
-                    return float(ast.literal_eval(node.value))
-    raise LookupError(f"{name} not found in {path}")
-
-
-def _load_parameters(root: Path):
-    """Read the constants this experiment ran on.
-
-    `config/edukit.yaml` changes as measurements land. This experiment's `config.yaml`
-    overrides it with the values this run used. The project is not installed as a
-    package. `src` goes on `sys.path` first.
-    """
-    sys.path.insert(0, str(root / "src"))
-    from furuta.parameters import FurutaParameters
-
-    pinned = yaml.safe_load((HERE.parent / "config.yaml").read_text())
-    defaults = yaml.safe_load((root / "config" / "edukit.yaml").read_text())
-    merged = {
-        **defaults["geometry"],
-        **defaults["dynamics"],
-        **defaults["actuator"],
-        **defaults["control"],
-        **defaults["sensing"],
-        **pinned["physical"],
-    }
-    return FurutaParameters(
-        **{
-            k: v
-            for k, v in merged.items()
-            if k in FurutaParameters.__dataclass_fields__
-        }
-    )
-
-
-params = _load_parameters(ROOT)
-arm_height = _module_constant(
-    ROOT / "src" / "furuta" / "articulation.py", "ARM_HEIGHT_M"
+sys.path.insert(0, str(HERE))
+from _parameters import ARTICULATION, load_parameters, module_constant  # noqa: E402
+from _style import (  # noqa: E402
+    DOF,
+    DOF_TEXT,
+    EX,
+    EZ,
+    FAINT,
+    INK,
+    MUTED,
+    RIGHT,
+    apply_style,
+    circle3,
+    depth,
+    project,
+    revolute,
 )
+
+params = load_parameters()
+arm_height = module_constant(ARTICULATION, "ARM_HEIGHT_M")
 
 L = params.pendulum_length_m
 r = params.rotor_arm_length_m
 
-# Shared with the later experiments' `_style.py`. Orange is the simulation there too.
-INK = "#1a2733"
-MUTED = "#5a6b7a"
-FAINT = "#9aa7b3"
-DOF = "#e8833a"
-DOF_TEXT = "#c4651f"  # the orange, darkened to read as text on white
+apply_style()
 DOF_WASH = "#fdf1e7"
-
-mpl.rcParams.update(
-    {
-        "font.family": "sans-serif",
-        "font.sans-serif": ["Helvetica Neue", "Helvetica", "Arial", "DejaVu Sans"],
-        "mathtext.fontset": "custom",
-        "mathtext.rm": "Helvetica Neue",
-        "mathtext.it": "Helvetica Neue:italic",
-        "mathtext.cal": "Helvetica Neue",
-        "lines.solid_capstyle": "round",
-    }
-)
 
 FS_MAIN = 13.5  # lengths and the centre of mass
 FS_NOTE = 12.5  # axis letters, joint roles, arm height
 FS_ANGLE = 23  # phi, theta
 SWING_HALF = np.radians(25.0)  # half-angle of the drawn swing sector, illustrative
 
-# Axonometric camera, azimuth from +X toward +Y and elevation above the floor. From the
-# front right the swing plane is drawn at 0.51 of its true area and the arm's vertical
-# plane at 0.70. Turning further toward +X opens the swing plane but pushes the L label
-# into the stand.
-AZ = np.radians(-54.0)
-EL = np.radians(30.0)
-VIEW = np.array([np.cos(EL) * np.cos(AZ), np.cos(EL) * np.sin(AZ), np.sin(EL)])
-RIGHT = np.array([-np.sin(AZ), np.cos(AZ), 0.0])
-UP = np.cross(VIEW, RIGHT)
-EX, EY, EZ = np.eye(3)
-
 HALO = [pe.withStroke(linewidth=4, foreground="white")]
-
-
-def project(p):
-    """Project world points of shape (..., 3) onto the page."""
-    p = np.asarray(p, dtype=float)
-    return np.stack([p @ RIGHT, p @ UP], axis=-1)
-
-
-def depth(p):
-    """Distance toward the camera. Larger is nearer."""
-    return np.asarray(p, dtype=float) @ VIEW
 
 
 def line3(ax, a, b, **kw):
@@ -179,48 +110,6 @@ def label(ax, xy, text, dx=0, dy=0, color=INK, fs=FS_MAIN, halo=False, **kw):
         zorder=12,
         path_effects=HALO if halo else None,
         **kw,
-    )
-
-
-def circle3(c, u, rho, t0, t1, n=200):
-    """Return points on a circle about axis u. t increases by the right-hand rule."""
-    u = u / np.linalg.norm(u)
-    v = np.cross(u, EZ) if abs(u @ EZ) < 0.9 else EX.copy()
-    v /= np.linalg.norm(v)
-    w = np.cross(u, v)
-    t = np.linspace(t0, t1, n)
-    return c + rho * (np.cos(t)[:, None] * v + np.sin(t)[:, None] * w)
-
-
-def convex_hull(pts):
-    """Return the convex hull of page points, by the monotone chain method."""
-    pts = sorted(map(tuple, pts))
-
-    def turn(o, a, b):
-        return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
-
-    lower, upper = [], []
-    for p in pts:
-        while len(lower) >= 2 and turn(lower[-2], lower[-1], p) <= 0:
-            lower.pop()
-        lower.append(p)
-    for p in reversed(pts):
-        while len(upper) >= 2 and turn(upper[-2], upper[-1], p) <= 0:
-            upper.pop()
-        upper.append(p)
-    return np.array(lower[:-1] + upper[:-1])
-
-
-def revolute(ax, c, u, rho, half, face, z):
-    """Draw a revolute joint as a short cylinder whose axis is the joint axis."""
-    u = u / np.linalg.norm(u)
-    ring_a = circle3(c - half * u, u, rho, 0, 2 * np.pi, 120)
-    ring_b = circle3(c + half * u, u, rho, 0, 2 * np.pi, 120)
-    hull = convex_hull(project(np.vstack([ring_a, ring_b])))
-    ax.add_patch(Polygon(hull, closed=True, fc=face, ec=DOF, lw=1.6, zorder=z))
-    front = ring_b if depth(c + half * u) > depth(c - half * u) else ring_a
-    ax.add_patch(
-        Polygon(project(front), closed=True, fc=face, ec=DOF, lw=1.6, zorder=z + 0.1)
     )
 
 
