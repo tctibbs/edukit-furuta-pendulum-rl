@@ -12,7 +12,7 @@ Training host setup followed [Training host setup](../../runbooks/training-host-
 
 ### Defining the model
 
-The Furuta pendulum is a multibody system: three rigid bodies joined by two rotating joints.
+The first step in building the simulation in Isaac Lab is understanding the model. The Furuta pendulum is a multibody system: three rigid bodies joined by two rotating joints.
 
 - Base: the stand. It is fixed in place.
 - Rotor arm: a horizontal arm that the stepper motor spins about the vertical axis `Z`.
@@ -21,13 +21,6 @@ The Furuta pendulum is a multibody system: three rigid bodies joined by two rota
 ![Model geometry](./figures/model_spec.png)
 
 *The three bodies and their two joint axes, with dimensions from the configuration.*
-
-PhysX can simulate a multibody system in two ways:
-
-- Maximal coordinates: each body moves on its own, and the solver pulls the joints back into place every step. The joints hold only approximately. Best for loose objects and joints that can break.
-- Reduced coordinates: PhysX arranges the bodies as a tree, called an articulation, where each body hangs off its parent through a joint. PhysX tracks only the joint angles, computes each body's position from them, and uses the body masses to work out the motion. The joints hold exactly. Best for robot arms and other jointed chains.
-
-The model uses reduced coordinates. Its joints are rigid hinges, and the joint angles are exactly what the board measures. From here on, the code and documentation call the model an articulation, following the PhysX term.
 
 The model's physical constants are set in [config.yaml](./config.yaml):
 
@@ -42,8 +35,28 @@ The model's physical constants are set in [config.yaml](./config.yaml):
 
 The physical constants above introduce two new terms:
 
-- Shaft inertia, normalized: rotational inertia is resistance to being spun up, the rotational equivalent of mass. Most of the pendulum's mass is in the rod. The shaft and other parts that turn with it add a little more inertia. The manual infers it from the measured swing frequency and gives it as a ratio to `m*L^2/2`.
+- Shaft inertia, normalized: rotational inertia is resistance to being spun up. It is the rotational equivalent of mass. Most of the pendulum's mass is in the rod. The shaft and other parts that turn with it add a little more inertia. The manual infers it from the measured swing frequency and gives it as a ratio to `m*L^2/2`.
 - Quality factor `Q`: how long a free swing lasts before friction in the pivot stops it. At `Q = 20`, each swing is about 15 percent smaller than the last. The model applies this as damping, a friction torque at the pendulum joint.
+
+### Simulating the physics
+
+For the physics engine to simulate the pendulum, the model has to represent its mechanics correctly. Those mechanics split into two types, kinematics and dynamics.
+
+Kinematics describes how things move: where each body is, how fast each one is going, and how quickly that is changing. In this model, two angles describe most of it: the arm angle `φ` and the pendulum angle `θ`. The rotor arm is the one part under direct control. The stepper moves it as commanded, so kinematics controls its motion. [Modeling the actuator and sensors](#modeling-the-actuator-and-sensors) explains how the actuator does it.
+
+Dynamics describes why things move: the forces behind the motion. Nothing in this model drives the pendulum directly, so how it swings comes down to four things:
+
+- **Gravity**: pulls the rod down. A hanging pendulum settles back like a ball in a valley. An upright one is a ball balanced on a hilltop. Any small tilt grows until it falls.
+- **Rotational inertia**: how hard the rod is to speed up or slow down. It is the rotational counterpart of mass, and it depends on where the mass sits as well as how much there is. A hammer held by the end of its handle is much harder to swing than one held near its head. The rod pivots at one end, and most of its resistance comes from its far half.
+- **Coupling**: how the motor reaches the rod. The motor can only turn the arm, and the arm can only push on the rod at the pivot. When the pivot moves sideways, the free end lags behind and the rod tilts. A hanging broom does the same when the hand holding it jerks. Upright, the same push keeps the rod balanced. Moving the pivot under the lean tips the rod back toward vertical. Balancing a broom on a palm works the same way.
+- **Friction**: the pivot bearing takes a little energy out of every swing, and a free swing slowly dies out. A playground swing that nobody pushes does the same. The quality factor `Q` measures how slowly.
+
+PhysX computes all of this on every simulation step, but only from the numbers the model gives it: gravity, each body's inertia, and the pivot damping. Matching those to the real unit is the model's main job. PhysX can keep track of the bodies in one of two ways:
+
+- Maximal coordinates: each body moves on its own, and the solver pulls the joints back into place every step. The joints hold only approximately. Best for loose objects and joints that can break.
+- Reduced coordinates: PhysX arranges the bodies as a tree, called an articulation, where each body hangs off its parent through a joint. PhysX tracks only the joint angles, computes each body's position from them, and uses the body masses to work out the motion. The joints hold exactly. Best for robot arms and other jointed chains.
+
+The model uses reduced coordinates. Its joints are rigid hinges, and the joint angles are exactly what the board measures. From here on, the code and documentation call the model an articulation, following the PhysX term.
 
 ### Building the articulation
 
@@ -52,7 +65,7 @@ Isaac Sim reads the articulation from a Universal Scene Description (USD) file. 
 - `RigidBodyAPI` makes an entry a body that physics moves.
 - `MassAPI` sets a body's mass and inertia, covered in [Deriving rotational inertia](#deriving-rotational-inertia).
 - `RevoluteJoint` joins two bodies with a rotating joint.
-- `DriveAPI` drives the rotor arm's joint, covered in [Emulating the stepper motor drive](#emulating-the-stepper-motor-drive).
+- `DriveAPI` drives the rotor arm's joint, covered in [Modeling the actuator and sensors](#modeling-the-actuator-and-sensors).
 - `FixedJoint` pins the base to the world.
 - `ArticulationRootAPI`, on the top-level `/Furuta` entry, marks everything below it as one articulation.
 
@@ -151,7 +164,9 @@ A verification test changed `pendulum_length_m` from 0.258 m to 0.300 m in a cop
 
 The output confirms that USD assets generate parametrically from configuration files rather than hardcoded geometries.
 
-### Emulating the stepper motor drive
+### Modeling the actuator and sensors
+
+An actuator is whatever turns a control command into motion. On the Edukit, the actuator for the rotor arm is a chain of three parts. The firmware on the STM32 board turns each acceleration command into a stream of microsteps. The L6474 driver on the IHM01A1 shield powers the motor coils for each step. The stepper motor then turns the rotor arm. The environment has to reproduce this chain in simulation.
 
 Environment class [`src/furuta/env.py`](../../../src/furuta/env.py) implements the DirectRLEnv workflow under registration key `Furuta-Balance-Direct-v0`. The cartpole template from [Experiment 01](../01-cartpole-bringup/writeup.md) applies joint effort directly:
 
@@ -169,15 +184,26 @@ self.robot.set_joint_position_target(
 )
 ```
 
-The actuator integrates once per 500 Hz control step, equal to 2 ms, while physics advances across two 1000 Hz substeps with decimation factor 2.
+In simulation, [`AccelerationCommandActuator`](../../../src/furuta/actuator.py) stands in for the firmware and the motor. It turns each acceleration command into a position for the rotor arm with the kinematic equations, once per control step of length `Δt`:
+
+```math
+\omega_{k+1} = \mathrm{clip}\left(\omega_k + \alpha\,\Delta t,\ \pm\omega_\mathrm{max}\right)
+\qquad
+\phi_{k+1} = \phi_k + \omega_{k+1}\,\Delta t
+```
+
+The policy's action `a`, between -1 and 1, is multiplied by the 100 rad/s^2 limit to give the acceleration `α`. That limit is assumed. The motor's torque bounds it, and nothing has measured it on this unit yet. The arm speed `ω` is capped at the stepper's top rate of 10,000 microsteps per second, 19.6 rad/s. The new arm angle `φ` is rounded to whole microsteps and becomes the target the joint drive holds. No forces enter the calculation.
+
+The actuator updates once every 2 ms, the 500 Hz loop rate of the Edukit firmware (Manual Appendix E, Section 19). The policy sees the same timing it will face on the board. PhysX runs twice as fast, with two 1 ms substeps per command, because a finer physics step keeps the simulated motion accurate between commands. The physics rate has to be a whole multiple of the control rate, so that each command covers whole substeps. Isaac Lab calls that multiple the decimation, here 2.
 
 Two hardware resolutions set the quantization below, both from Manual page 11. The stepper takes 3200 microsteps per revolution, 200 full steps of 16 microsteps each. The encoder reads 2400 counts per revolution.
 
 ![Actuator and observation pipeline](./figures/actuator_pipeline.png)
 
-*Actuator and observation pipeline. The upper path scales actions to acceleration limits, integrates stepping velocity, accumulates position setpoints at 500 Hz, quantizes setpoints to 1/3200 microstep increments, and applies targets to the PhysX joint drive. The lower path quantizes pendulum angles to 2400 encoder counts and forwards open-loop stepper steps into the observation vector.*
+*The actuator and observation loop. Along the bottom, the stepper firmware is emulated once per 2 ms control step, and PhysX holds the resulting target for two 1 ms substeps. Along the top, the sensing is emulated: the pendulum angle is read through the encoder, and the rotor reading is the command itself.*
 
-Observations reflect hardware sensing constraints:
+A sensor does the reverse of an actuator. It turns motion into a reading. The Edukit's only sensor is an optical encoder on the pendulum pivot. The rotor arm has none. The observations the policy receives follow those limits:
+
 - Pendulum angle rounds to discrete increments of the 2400-count optical encoder, differencing positions across steps to compute angular velocity.
 - Rotor observations provide commanded microstep angles because the stepper runs open loop without an encoder.
 
@@ -195,7 +221,7 @@ Physical stepper motors hold commanded angles rigidly. Matching that holding sti
 
 Tracking error represents the largest angular difference between commanded targets and simulated positions.
 
-The initial failure came from omitting schema `UsdPhysics.DriveAPI` on the rotor joint. Isaac Lab implicit actuators write proportional-derivative PD targets into joint drives, so joints lacking `DriveAPI` receive no torque despite normal simulation execution. Commanded travel was 119 microsteps, meaning the rotor never moved.
+The initial failure came from omitting schema `UsdPhysics.DriveAPI` on the rotor joint. Isaac Lab also uses the word actuator, for its joint drive models. Its implicit actuators write proportional-derivative PD targets into joint drives, so joints lacking `DriveAPI` receive no torque despite normal simulation execution. Commanded travel was 119 microsteps, meaning the rotor never moved.
 
 Adding `DriveAPI` with damping `D = 1000 N s/rad` introduced severe velocity lag. Implicit actuators apply torque:
 

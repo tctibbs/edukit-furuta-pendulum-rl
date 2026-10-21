@@ -4,5 +4,7 @@ Final cleanup, and room for whatever is worth adding once everything works.
 
 ## Goals
 
-- [ ] A committed recording shows the physical unit swinging up and balancing.
-- [ ] Add some personality and sparkle.
+- [x] Add an LQR mode.
+- [x] Add some personality and sparkle.
+
+Met by [Experiment 07](../experiments/07-showcase/writeup.md).

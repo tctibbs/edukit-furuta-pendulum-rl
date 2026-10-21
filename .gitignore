@@ -16,6 +16,10 @@ firmware/
 # docs/runbooks/edukit-firmware.md stages under build/firmware/.
 build/
 
+# Bench captures, written by the hw-* recipes. The ones a write-up cites are copied into
+# its experiment folder.
+data/
+
 # Python
 __pycache__/
 *.py[cod]

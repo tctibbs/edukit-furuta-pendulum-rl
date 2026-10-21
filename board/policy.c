@@ -21,6 +21,9 @@
 #if POLICY_SQUASH_ACTIONS != 0 && POLICY_SQUASH_ACTIONS != 1
 #error "POLICY_SQUASH_ACTIONS must be 0 or 1"
 #endif
+#if POLICY_HIDDEN_1 != POLICY_HIDDEN || POLICY_HIDDEN_2 != POLICY_HIDDEN
+#error "policy_weights.h has hidden widths other than the POLICY_HIDDEN every policy uses"
+#endif
 
 /* The array sizes the exporter wrote must be the layer shapes this file assumes.
  * C99 has no static_assert; a negative array size fails the build in its place. */
@@ -31,6 +34,13 @@ POLICY_ASSERT(sizeof(POLICY_W2) == sizeof(float) * POLICY_HIDDEN_2 * POLICY_HIDD
 POLICY_ASSERT(sizeof(POLICY_B2) == sizeof(float) * POLICY_HIDDEN_2, b2);
 POLICY_ASSERT(sizeof(POLICY_W3) == sizeof(float) * POLICY_HIDDEN_2, w3);
 POLICY_ASSERT(sizeof(POLICY_B3) == sizeof(float), b3);
+
+/* The policy in `policy_weights.h`, which the single-policy images run. Its bound is the
+ * caller's, passed to `policy_command`, so `a_max` here is unused. */
+static const policy_t policy_default = {
+    "default", POLICY_W1, POLICY_B1, POLICY_W2, POLICY_B2, POLICY_W3, POLICY_B3,
+    0.0f,      POLICY_SQUASH_ACTIONS,
+};
 
 /* One dense layer, y = W x + b, with W row-major as W[out][in]. The products are summed
  * first and the bias added last, the op order of `x @ W.T + b` in the exporter's
@@ -60,18 +70,44 @@ static void elu_in_place(float *x, int n)
     }
 }
 
-float policy_forward(const float obs[POLICY_NUM_OBS])
+/* The bound the task trained under: `torch.tanh(action)` before the actuator for the
+ * swing-up, whose clamp then never engages; the actuator's clamp for the balance tasks. */
+static float bounded(float action, int squash)
 {
-    float hidden_1[POLICY_HIDDEN_1];
-    float hidden_2[POLICY_HIDDEN_2];
+    if (squash) {
+        return tanhf(action);
+    }
+    if (action > 1.0f) {
+        return 1.0f;
+    }
+    if (action < -1.0f) {
+        return -1.0f;
+    }
+    return action;
+}
+
+float policy_forward_with(const policy_t *p, const float obs[POLICY_NUM_OBS])
+{
+    float hidden_1[POLICY_HIDDEN];
+    float hidden_2[POLICY_HIDDEN];
     float out[1];
 
-    dense(POLICY_W1, POLICY_B1, POLICY_HIDDEN_1, POLICY_NUM_OBS, obs, hidden_1);
-    elu_in_place(hidden_1, POLICY_HIDDEN_1);
-    dense(POLICY_W2, POLICY_B2, POLICY_HIDDEN_2, POLICY_HIDDEN_1, hidden_1, hidden_2);
-    elu_in_place(hidden_2, POLICY_HIDDEN_2);
-    dense(POLICY_W3, POLICY_B3, 1, POLICY_HIDDEN_2, hidden_2, out);
+    dense(p->w1, p->b1, POLICY_HIDDEN, POLICY_NUM_OBS, obs, hidden_1);
+    elu_in_place(hidden_1, POLICY_HIDDEN);
+    dense(p->w2, p->b2, POLICY_HIDDEN, POLICY_HIDDEN, hidden_1, hidden_2);
+    elu_in_place(hidden_2, POLICY_HIDDEN);
+    dense(p->w3, p->b3, 1, POLICY_HIDDEN, hidden_2, out);
     return out[0];
+}
+
+float policy_command_with(const policy_t *p, const float obs[POLICY_NUM_OBS])
+{
+    return bounded(policy_forward_with(p, obs), p->squash) * p->a_max;
+}
+
+float policy_forward(const float obs[POLICY_NUM_OBS])
+{
+    return policy_forward_with(&policy_default, obs);
 }
 
 int policy_squash_actions(void)
@@ -81,18 +117,5 @@ int policy_squash_actions(void)
 
 float policy_command(const float obs[POLICY_NUM_OBS], float a_max)
 {
-    float action = policy_forward(obs);
-#if POLICY_SQUASH_ACTIONS
-    /* The bound the swing-up task trained under: `torch.tanh(action)` before the
-     * actuator, whose clamp then never engages. */
-    action = tanhf(action);
-#else
-    /* The bound the balance tasks trained under: the actuator's clamp. */
-    if (action > 1.0f) {
-        action = 1.0f;
-    } else if (action < -1.0f) {
-        action = -1.0f;
-    }
-#endif
-    return action * a_max;
+    return bounded(policy_forward(obs), POLICY_SQUASH_ACTIONS) * a_max;
 }

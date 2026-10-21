@@ -10,3 +10,4 @@ The experiments form a series, one per folder, in order. Each folder holds its w
 | 04 | [Refitting the simulation](04-model-reconciliation/writeup.md) |
 | 05 | [Balance](05-balance/writeup.md) |
 | 06 | [Swing-up](06-swing-up/writeup.md) |
+| 07 | [The showcase carousel](07-showcase/writeup.md) |

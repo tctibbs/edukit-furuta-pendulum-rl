@@ -23,6 +23,8 @@ repos:
       # commit of a manual, a firmware zip, or a training checkpoint.
       - id: check-added-large-files
         args: [--maxkb=2048]
+        # The showcase clips are full-quality phone video, kept large on purpose.
+        exclude: ^docs/experiments/07-showcase/figures/.*\.webp$
 
   # Documentation house style.
   - repo: local

@@ -2,7 +2,7 @@
  * Source checkpoint: 05-balance/checkpoints/momentum_a60d_seed1_model_299.pt
  * Iteration: 299
  * Layout: row-major, W[out][in]; ELU (alpha 1) after the first two layers;
- * the last layer's single output is the normalised action, bounded to
+ * the last layer's single output is the normalized action, bounded to
  * [-1, 1] by tanh when POLICY_SQUASH_ACTIONS is 1 and by a clamp when it is
  * 0, as the training task's `squash_actions` had it. The exploration std is
  * not exported. */
